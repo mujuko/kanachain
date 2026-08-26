@@ -112,6 +112,11 @@ export declare class KanaChainBlockCode {
   encodeFrame(frame: Uint8Array, options?: { pretty?: boolean }): EncodedFrame;
   /** 単語ブロックをフレームへ戻す。encodeFrameの逆。 */
   decodeFrame(input: string | string[] | string[][]): Uint8Array;
+  /**
+   * 単語ブロックを復号し、CRC-16で検証された各ブロックのpayloadを返す。
+   * 返却順は入力ブロック順で、各Uint8Arrayはフレームの連続したデータ片。
+   */
+  decodeFrameBlocks(input: string | string[] | string[][]): Uint8Array[];
 
   format(
     blocksOrWords: string[] | string[][],

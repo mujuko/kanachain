@@ -48,6 +48,14 @@ function frameBytes(type, index, data) {
   out[out.length - 1] = crc & 255;
   return out;
 }
+function attachVerifiedBlocks(error, blocks) {
+  const enriched = error instanceof Error ? error : new Error(String(error));
+  Object.defineProperty(enriched, "verifiedBlocks", {
+    enumerable: false,
+    value: blocks.map((block) => Uint8Array.from(block)),
+  });
+  return enriched;
+}
 function bigIntFrom(bytes) {
   let n = 0n;
   for (const b of bytes) n = (n << 8n) | BigInt(b);
@@ -524,7 +532,7 @@ export class KanaChainBlockCode {
       );
     return candidates[0];
   }
-  decodeFrame(value) {
+  decodeFrameBlocks(value) {
     const display = parseBlocks(value);
     if (!display.length) throw new Error("word list must not be empty");
     const blocks = display.map((b) =>
@@ -533,29 +541,37 @@ export class KanaChainBlockCode {
     let stateList = this.startStates;
     const data = [];
     for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i];
-      const final = i === blocks.length - 1;
-      if (block.length === 0) throw new Error(`block ${i} is empty`);
-      if (!final && block.length !== 35)
-        throw new Error(`block ${i} uses ${block.length} words; expected 35`);
-      if (final && block.length > 35)
-        throw new Error(`final block ${i} is too long`);
-      if (final !== terminal(block.at(-1)))
-        throw new Error(`terminal word is in the wrong block ${i}`);
-      if (new Set(block).size !== block.length)
-        throw new Error(`duplicate reading in block ${i}`);
-      if (i && block[0][0] !== stateList[0])
-        throw new Error(
-          `block ${i} breaks the chain: expected ${stateList[0]}`,
-        );
-      const got = this.#decodeBlock(block, final ? 1 : 0, i, stateList);
-      data.push(got.data);
-      stateList = [got.end];
+      try {
+        const block = blocks[i];
+        const final = i === blocks.length - 1;
+        if (block.length === 0) throw new Error(`block ${i} is empty`);
+        if (!final && block.length !== 35)
+          throw new Error(`block ${i} uses ${block.length} words; expected 35`);
+        if (final && block.length > 35)
+          throw new Error(`final block ${i} is too long`);
+        if (final !== terminal(block.at(-1)))
+          throw new Error(`terminal word is in the wrong block ${i}`);
+        if (new Set(block).size !== block.length)
+          throw new Error(`duplicate reading in block ${i}`);
+        if (i && block[0][0] !== stateList[0])
+          throw new Error(
+            `block ${i} breaks the chain: expected ${stateList[0]}`,
+          );
+        const got = this.#decodeBlock(block, final ? 1 : 0, i, stateList);
+        data.push(got.data);
+        stateList = [got.end];
+      } catch (error) {
+        throw attachVerifiedBlocks(error, data);
+      }
     }
-    return concatBytes(data);
+    return data;
+  }
+  decodeFrame(value) {
+    return concatBytes(this.decodeFrameBlocks(value));
   }
   deserialize(value) {
-    const frame = this.decodeFrame(value);
+    const frameBlocks = this.decodeFrameBlocks(value);
+    const frame = concatBytes(frameBlocks);
     if (frame.length < 3) throw new Error("stream header is truncated");
     if (frame[0] !== 1 || frame[1] !== 1)
       throw new Error(`unsupported version ${frame[0]}/${frame[1]}`);

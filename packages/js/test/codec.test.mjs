@@ -94,6 +94,18 @@ test("canonical word vectors decode and preserve every block", () => {
     assert.equal(new Set(block).size, block.length);
 });
 
+test("decodeFrameBlocks returns CRC-verified payloads in block order", () => {
+  const frame = bytes(40);
+  const encoded = codec.encodeFrame(frame);
+  const blockData = codec.decodeFrameBlocks(encoded.text);
+  assert.equal(blockData.length, encoded.blocks.length);
+  assert.ok(blockData.every((data) => data.length <= 18));
+  assert.deepEqual(
+    Uint8Array.from(blockData.flatMap((data) => [...data])),
+    frame,
+  );
+});
+
 test("same reading twice in a block is rejected", () => {
   const encoded = codec.encodeFrame(Uint8Array.from([1, 1, 0]));
   const words = encoded.canonicalBlocks.map((b) => [...b]);
@@ -182,6 +194,41 @@ test("a one-word corruption is localized to its block", () => {
       new RegExp(`block ${blockIndex}`),
     );
   }
+});
+
+test("a later block failure exposes payloads from earlier verified blocks", () => {
+  const encoded = codec.encodeFrame(bytes(40));
+  assert.ok(encoded.canonicalBlocks.length >= 2);
+  const blocks = encoded.canonicalBlocks.map((block) => [...block]);
+  const expectedPayloads = codec.decodeFrameBlocks(blocks);
+  const secondBlock = blocks[1];
+  let replacement = null;
+  for (let wordIndex = 0; wordIndex < secondBlock.length - 1 && !replacement; wordIndex += 1) {
+    const word = secondBlock[wordIndex];
+    const candidate = codec.dictionary.normalWords.find(
+      (other) =>
+        other !== word &&
+        other[0] === word[0] &&
+        other.at(-1) === word.at(-1) &&
+        !secondBlock.includes(other),
+    );
+    if (candidate) replacement = [wordIndex, candidate];
+  }
+  assert.ok(replacement, "no second-block mutation found");
+  secondBlock[replacement[0]] = replacement[1];
+
+  let failure;
+  try {
+    codec.decodeFrameBlocks(blocks);
+  } catch (error) {
+    failure = error;
+  }
+
+  assert.ok(failure instanceof Error);
+  assert.match(failure.message, /block 1/);
+  assert.equal(failure.verifiedBlocks.length, 1);
+  assert.deepEqual(failure.verifiedBlocks[0], expectedPayloads[0]);
+  assert.notEqual(failure.verifiedBlocks[0], expectedPayloads[0]);
 });
 
 test("unsupported algorithm, dictionary, and mode bytes are rejected", () => {

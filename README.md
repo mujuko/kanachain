@@ -128,11 +128,9 @@ npm run build:vectors
 
 ## 出典とライセンス
 
-ワードプールには、国立国語研究所がCC BY 4.0で公開する教育語彙データだけを使用します。帰属表示は[dictionary/licenses/NINJAL-EDUCATIONAL-BASIC-VOCABULARY.md](dictionary/licenses/NINJAL-EDUCATIONAL-BASIC-VOCABULARY.md)に収録しています。
+ワードプールには、国立国語研究所がCC BY 4.0で公開する教育語彙データを使用しています。帰属表示は[dictionary/licenses/NINJAL-EDUCATIONAL-BASIC-VOCABULARY.md](dictionary/licenses/NINJAL-EDUCATIONAL-BASIC-VOCABULARY.md)に収録しています。
 
 - 教育基本語彙データベース（2009A）: https://mmsrv.ninjal.ac.jp/brfvep/kyoikukihongoi_2009A.csv
   - SHA-256: `ee003f2d98acbb4642e70f032cc04b5501361aabfabc1d603439935b878f3829`
 - 日本語教育基本語彙データベース: https://mmsrv.ninjal.ac.jp/brfvep/rokusyutaisyo.csv
   - SHA-256: `80f190abebfe5fdfc52aec06a6c9c842eb4b1ff25b6687f135547a81902607af`
-
-現在のJLPTは語彙・漢字・文法項目の公式一覧を公開していないため、非公式の「JLPT単語リスト」は採用根拠にしていません。
