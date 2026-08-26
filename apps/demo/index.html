@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kanachain — 仮名チェーンブロック符号</title>
+    <meta
+      name="description"
+      content="任意の文字列を、ブロックをまたいでつながる日本語のしりとりへ可逆変換します。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A4%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>kanachain</h1>
+        <p class="tagline">
+          任意の文字列を、ブロックをまたいでつながる日本語のしりとりへ可逆変換します。
+          符号方式は <strong>仮名チェーンブロック符号（KCBC）</strong>、
+          現在の版は <code>A1/D1</code> です。
+        </p>
+      </header>
+
+      <section class="panes">
+        <div class="pane">
+          <label class="pane-label" for="source">もとの文字列</label>
+          <textarea
+            id="source"
+            spellcheck="false"
+            placeholder="ここに文字を入力すると、しりとりになります。"
+          ></textarea>
+          <div class="pane-foot">
+            <span id="source-size" class="hint"></span>
+            <button id="copy-source" type="button" class="ghost">コピー</button>
+          </div>
+        </div>
+
+        <div class="arrow" aria-hidden="true">
+          <span>⇅</span>
+        </div>
+
+        <div class="pane">
+          <label class="pane-label" for="encoded">しりとり</label>
+          <textarea
+            id="encoded"
+            spellcheck="false"
+            placeholder="しりとりを貼り付けると、もとの文字列に戻ります。"
+          ></textarea>
+          <div class="pane-foot">
+            <span id="encoded-size" class="hint"></span>
+            <button id="copy-encoded" type="button" class="ghost">コピー</button>
+          </div>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+
+      <section class="stats" id="stats" hidden>
+        <div><dt>語数</dt><dd id="stat-words">—</dd></div>
+        <div><dt>ブロック</dt><dd id="stat-blocks">—</dd></div>
+        <div><dt>もとのバイト数</dt><dd id="stat-source">—</dd></div>
+        <div><dt>表現</dt><dd id="stat-mode">—</dd></div>
+      </section>
+
+      <section class="chain" id="chain" hidden>
+        <h2>ブロックの連なり</h2>
+        <p class="hint">
+          通常ブロックはちょうど35語で、最終ブロックだけ <code>ん</code> で終わります。
+          ブロックの先頭は直前のブロックの末尾かなから始まります。
+        </p>
+        <div id="chain-blocks"></div>
+      </section>
+
+      <section class="samples">
+        <h2>試してみる</h2>
+        <div id="sample-buttons" class="sample-buttons"></div>
+      </section>
+
+      <footer>
+        <p>
+          <a href="https://github.com/mujuko/kanachain">GitHub</a>
+          ・<a href="https://www.npmjs.com/package/kanachain">npm</a>
+          ・<a href="https://pypi.org/project/kanachain/">PyPI</a>
+        </p>
+        <p class="hint" id="codebook-note"></p>
+        <p class="hint">
+          符号表は国立国語研究所がCC BY 4.0で公開する教育語彙データベースに由来します。
+          変換はすべてブラウザ内で行われ、入力はどこにも送信されません。
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kanachain"
+version = "1.0.0"
+description = "Kana Chain Block Code (KCBC): serialize any bytes into Japanese shiritori that chains across blocks"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "mujuko" }]
+keywords = ["shiritori", "kana", "japanese", "encoding", "serialization"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Natural Language :: Japanese",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing :: General",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mujuko/kanachain"
+Repository = "https://github.com/mujuko/kanachain"
+Issues = "https://github.com/mujuko/kanachain/issues"
+
+[project.scripts]
+kanachain = "kanachain.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kanachain"]
+
+# 符号表はCC BY 4.0のデータに由来するため、帰属表示を配布物へ同梱する。
+[tool.hatch.build.targets.wheel.force-include]
+"NOTICE.md" = "kanachain/NOTICE.md"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE", "NOTICE.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

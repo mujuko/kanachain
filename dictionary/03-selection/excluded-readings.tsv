@@ -1,0 +1,46 @@
+reading	category	group	source	in_source_pool
+いせい	sensitive		01-input/exclusions/sensitive.txt:1	yes
+いない	uncommon		01-input/exclusions/uncommon.txt:1	yes
+うお	uncommon		01-input/exclusions/uncommon.txt:2	yes
+おう	uncommon		01-input/exclusions/uncommon.txt:3	yes
+おおく	uncommon		01-input/exclusions/uncommon.txt:4	yes
+おくじょう	confusable	confusable-1	01-input/exclusions/confusable-groups.csv:1	yes
+おくびょう	confusable	confusable-1	01-input/exclusions/confusable-groups.csv:1	yes
+おす	sensitive		01-input/exclusions/sensitive.txt:2	yes
+かこ	confusable	confusable-2	01-input/exclusions/confusable-groups.csv:2	yes
+かご	confusable	confusable-2	01-input/exclusions/confusable-groups.csv:2	yes
+かつどう	confusable	confusable-3	01-input/exclusions/confusable-groups.csv:3	yes
+かつよう	confusable	confusable-3	01-input/exclusions/confusable-groups.csv:3	yes
+かよう	uncommon		01-input/exclusions/uncommon.txt:5	yes
+かんだんけい	uncommon		01-input/exclusions/uncommon.txt:6	yes
+がい	uncommon		01-input/exclusions/uncommon.txt:7	yes
+きちがい	sensitive		01-input/exclusions/sensitive.txt:3	yes
+きんだい	uncommon		01-input/exclusions/uncommon.txt:8	yes
+げい	sensitive		01-input/exclusions/sensitive.txt:4	yes
+こうもん	sensitive		01-input/exclusions/sensitive.txt:5	yes
+さは	uncommon		01-input/exclusions/uncommon.txt:9	yes
+しな	sensitive		01-input/exclusions/sensitive.txt:6	yes
+しゃせい	sensitive		01-input/exclusions/sensitive.txt:7	yes
+しょうべん	sensitive		01-input/exclusions/sensitive.txt:8	yes
+せい	uncommon		01-input/exclusions/uncommon.txt:10	yes
+せいこう	sensitive		01-input/exclusions/sensitive.txt:9	yes
+だいべん	sensitive		01-input/exclusions/sensitive.txt:10	yes
+ちかん	sensitive		01-input/exclusions/sensitive.txt:11	yes
+ちち	sensitive		01-input/exclusions/sensitive.txt:12	yes
+ちほう	sensitive		01-input/exclusions/sensitive.txt:13	yes
+にんしん	sensitive		01-input/exclusions/sensitive.txt:14	yes
+はげ	sensitive		01-input/exclusions/sensitive.txt:15	yes
+はだか	sensitive		01-input/exclusions/sensitive.txt:16	yes
+ばか	sensitive		01-input/exclusions/sensitive.txt:17	yes
+びっこ	sensitive		01-input/exclusions/sensitive.txt:18	yes
+ふうぞく	sensitive		01-input/exclusions/sensitive.txt:19	yes
+ほうわ	confusable	confusable-4	01-input/exclusions/confusable-groups.csv:4	yes
+ほや	confusable	confusable-4	01-input/exclusions/confusable-groups.csv:4	yes
+ほら	confusable	confusable-4	01-input/exclusions/confusable-groups.csv:4	yes
+ぼや	confusable	confusable-4	01-input/exclusions/confusable-groups.csv:4	yes
+むね	sensitive		01-input/exclusions/sensitive.txt:20	yes
+めくら	sensitive		01-input/exclusions/sensitive.txt:21	yes
+めす	sensitive		01-input/exclusions/sensitive.txt:22	yes
+りゅう	confusable	confusable-5	01-input/exclusions/confusable-groups.csv:5	yes
+りゆう	confusable	confusable-5	01-input/exclusions/confusable-groups.csv:5	yes
+るんぺん	sensitive		01-input/exclusions/sensitive.txt:23	yes

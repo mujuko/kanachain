@@ -1,0 +1,21 @@
+{
+  "name": "kanachain",
+  "compatibility_date": "2026-06-16",
+  "assets": {
+    "directory": "./dist"
+  },
+  "env": {
+    "dev": {
+      "name": "kanachain-dev",
+      "assets": {
+        "directory": "./dist"
+      }
+    },
+    "production": {
+      "name": "kanachain",
+      "assets": {
+        "directory": "./dist"
+      }
+    }
+  }
+}

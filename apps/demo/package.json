@@ -1,0 +1,21 @@
+{
+  "name": "kanachain-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "deploy:dev": "wrangler deploy --env dev",
+    "deploy:production": "wrangler deploy --env production"
+  },
+  "dependencies": {
+    "@mujuko/kanachain": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "wrangler": "^4.42.0"
+  }
+}

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    name: JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: 符号表が辞書と一致するか
+        run: npm run check:codebook
+      - run: npm test
+      - name: デモをビルドする
+        run: npm run build --workspace kanachain-demo
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: テストを実行する
+        run: uv run --project packages/py --group dev python -m pytest -q
+        env:
+          PYTHONIOENCODING: utf-8
+      - name: JavaScriptとPythonの相互運用を検証する
+        run: uv run --project packages/py python scripts/cross_language_test.py
+        env:
+          PYTHONIOENCODING: utf-8

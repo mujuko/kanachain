@@ -1,0 +1,1137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>仮名チェーンブロック符号を作った</title>
+  <style>
+    :root {
+      /* Walime color tokens: paper, ink, brand, then semantic colors. */
+      --paper: #fafaf7;
+      --surface: #ffffff;
+      --surface-subtle: #f2f1ea;
+      --ink: #44433e;
+      --ink-strong: #2f2f2b;
+      --muted: #5d5b55;
+      --subtle: #78766d;
+      --border-subtle: #cfccc0;
+      --border: #78766d;
+      --brand-surface: #fafceb;
+      --brand-bright: #d8e653;
+      --brand: #afc514;
+      --brand-line: #90a70d;
+      --brand-border: #90a70d;
+      --brand-deep: #afc514;
+      --brand-ink: #2c3702;
+      --success-surface: #edf6f0;
+      --success: #28543d;
+      --error-surface: #fff0f0;
+      --error: #8a2731;
+      --warning-surface: #fff7dc;
+      --warning: #6e4900;
+      --info-surface: #eef6fa;
+      --info: #174e70;
+      /* Compatibility aliases used by the existing slide compositions. */
+      --cyan: var(--brand-line);
+      --yellow: var(--brand);
+      --pink: var(--error);
+      --green: var(--success);
+      --red: var(--error);
+      --slide-pad: clamp(2rem, 5vw, 6rem);
+      font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--surface-subtle);
+      color: var(--ink);
+    }
+
+    body {
+      font-weight: 700;
+      font-feature-settings: "palt" 1;
+    }
+
+    button { font: inherit; }
+
+    #deck {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 90% 12%, rgb(175 197 20 / 14%), transparent 24rem),
+        var(--paper);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      width: 100dvw;
+      height: 100dvh;
+      padding: var(--slide-pad);
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--paper);
+    }
+
+    .slide.is-active {
+      display: flex;
+      animation: enter 260ms cubic-bezier(.2, .8, .2, 1);
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateX(1.2rem); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgb(68 67 62 / 3%) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(68 67 62 / 3%) 1px, transparent 1px);
+      background-size: 4rem 4rem;
+      mask-image: linear-gradient(120deg, black, transparent 70%);
+    }
+
+    .slide::after {
+      content: attr(data-index);
+      position: absolute;
+      right: 2.1rem;
+      bottom: 1.5rem;
+      color: var(--border-subtle);
+      font-size: clamp(.72rem, 1.05vw, 1rem);
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+
+    .slide.center {
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .slide.stack {
+      flex-direction: column;
+      justify-content: center;
+      gap: clamp(1.4rem, 3vh, 3rem);
+    }
+
+    .slide.tight-stack { gap: .6rem; }
+    .slide.tight-stack .check-list { gap: .45rem; }
+
+    .slide.split {
+      align-items: center;
+      justify-content: center;
+      gap: clamp(2rem, 6vw, 7rem);
+    }
+
+    .slide.explain {
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: clamp(1rem, 2.4vh, 1.8rem);
+      padding-top: clamp(2.2rem, 5vh, 4.2rem);
+      text-align: left;
+    }
+
+    .explain-title {
+      max-width: none;
+      font-size: clamp(2.7rem, 5.3vw, 5.7rem);
+      line-height: 1.04;
+      letter-spacing: -.045em;
+      text-align: left;
+      text-wrap: balance;
+    }
+
+    .explain-content {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: clamp(1rem, 2.5vh, 2rem);
+      min-height: 0;
+      width: 100%;
+    }
+
+    .explain-content.visual-center { align-items: center; }
+
+    .explain-lead {
+      max-width: 19ch;
+      font-size: clamp(2.7rem, 5.8vw, 6.2rem);
+      font-weight: 950;
+      line-height: 1.06;
+      letter-spacing: -.05em;
+      text-wrap: balance;
+    }
+
+    .explain .equation,
+    .explain .flow,
+    .explain .word-chain,
+    .explain .mini-dictionary { justify-content: flex-start; }
+
+    .explain-content.visual-center .equation,
+    .explain-content.visual-center .flow,
+    .explain-content.visual-center .word-chain,
+    .explain-content.visual-center .mini-dictionary { justify-content: center; }
+
+    .explain .sub { text-align: left; }
+    .explain .mapping-table { width: 100%; }
+    .explain .check-list { width: min(100%, 72rem); }
+    .explain .flow,
+    .explain .reverse-map,
+    .explain .block-pairs {
+      width: 100%;
+      max-width: 100%;
+    }
+    .explain .pc-scene,
+    .explain .oral-scene { width: 100%; }
+
+    .slide.light { background: var(--surface); }
+    .slide.cyan { background: var(--brand-surface); }
+    .slide.yellow { background: var(--brand-bright); }
+    .slide.pink { background: var(--surface-subtle); }
+    .slide.red { background: var(--error-surface); }
+    .slide.green { background: var(--brand-bright); }
+
+    h1,
+    h2,
+    p { margin: 0; }
+
+    h1 {
+      max-width: 15ch;
+      font-size: clamp(3.1rem, 7.9vw, 8.4rem);
+      font-weight: 950;
+      line-height: 1.08;
+      letter-spacing: -.045em;
+      text-wrap: balance;
+    }
+
+    h1.wide { max-width: 21ch; }
+    h1.xl { font-size: clamp(4rem, 10.5vw, 11rem); }
+    h1.compact { font-size: clamp(2.8rem, 6.5vw, 7rem); }
+
+    .eyebrow {
+      color: var(--cyan);
+      font-size: clamp(1rem, 1.6vw, 1.6rem);
+      font-weight: 900;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    .sub {
+      max-width: 44ch;
+      color: var(--muted);
+      font-size: clamp(1.35rem, 2.5vw, 2.7rem);
+      font-weight: 750;
+      line-height: 1.45;
+      text-wrap: balance;
+    }
+
+    .sub strong { color: var(--ink); }
+
+    .accent { color: var(--brand-deep); }
+    .accent-yellow { color: var(--brand-deep); }
+    .accent-pink { color: var(--error); }
+    .accent-green { color: var(--brand-ink); }
+    .danger { color: var(--error); }
+
+    .underline {
+      text-decoration: underline;
+      text-decoration-color: var(--brand);
+      text-decoration-thickness: .11em;
+      text-underline-offset: .13em;
+    }
+
+    .strike {
+      text-decoration: line-through;
+      text-decoration-thickness: .08em;
+      text-decoration-color: var(--error);
+    }
+
+    .equation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(1rem, 3vw, 3rem);
+      width: 100%;
+      font-size: clamp(2rem, 5vw, 5.8rem);
+      font-weight: 950;
+      line-height: 1.1;
+      letter-spacing: -.04em;
+    }
+
+    .equation .arrow { color: var(--brand-border); }
+
+    .code {
+      padding: .16em .32em .22em;
+      border: .06em solid var(--brand-border);
+      border-radius: .18em;
+      background: var(--brand-surface);
+      color: var(--brand-ink);
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-weight: 800;
+      letter-spacing: -.05em;
+      box-shadow: inset 0 0 0 1px rgb(44 55 2 / 12%);
+    }
+
+    .light .code,
+    .yellow .code,
+    .green .code {
+      border-color: var(--brand-border);
+      background: var(--brand-surface);
+      color: var(--brand-ink);
+    }
+
+    .bit-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: .3em;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(2rem, 4vw, 4.7rem);
+      color: var(--brand-deep);
+    }
+
+    .bit-grid span {
+      display: grid;
+      place-items: center;
+      width: 1.25em;
+      aspect-ratio: 1;
+      border: .06em solid var(--brand-border);
+      background: var(--brand-surface);
+    }
+
+    .bit-caption {
+      color: var(--muted);
+      font-size: clamp(1.1rem, 2vw, 2rem);
+      letter-spacing: .08em;
+    }
+
+    .word-chain {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: center;
+      gap: .2em .36em;
+      max-width: 95vw;
+      font-size: clamp(2.5rem, 6.1vw, 7rem);
+      font-weight: 950;
+      line-height: 1.2;
+      letter-spacing: -.045em;
+    }
+
+    .word-chain .join { color: var(--brand-border); }
+    .word-chain em { color: var(--brand-deep); font-style: normal; }
+
+    .pc-scene {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: clamp(1rem, 5vw, 5rem);
+      width: min(92vw, 125rem);
+    }
+
+    .pc {
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      aspect-ratio: 4 / 3;
+      border: clamp(.35rem, .7vw, .7rem) solid currentColor;
+      border-radius: clamp(1rem, 2vw, 2rem);
+      background: var(--surface);
+      box-shadow: 0 1.5rem 4rem rgb(68 67 62 / 12%);
+    }
+
+    .pc > .pc-icon { font-size: clamp(4rem, 10vw, 10rem); line-height: 1; }
+
+    .pc.with-status {
+      grid-template-rows: 1fr 1fr;
+      padding: clamp(1rem, 2.2vw, 2.5rem);
+    }
+
+    .pc.with-status > .pc-icon { font-size: clamp(3.5rem, 7vw, 7rem); }
+
+    .pc-status {
+      align-self: stretch;
+      display: grid;
+      grid-template-columns: auto auto;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(.6rem, 1.2vw, 1.2rem);
+      width: 100%;
+      border-bottom: .12rem solid var(--border-subtle);
+      text-align: left;
+    }
+
+    .pc-status > span {
+      font-size: clamp(2.5rem, 4.6vw, 4.8rem);
+      line-height: 1;
+    }
+
+    .pc-status strong {
+      font-size: clamp(1.45rem, 2.45vw, 2.6rem);
+      font-weight: 950;
+      line-height: 1.16;
+      letter-spacing: -.03em;
+    }
+
+    .pc-status.connected { color: var(--success); }
+    .pc-status.disconnected { color: var(--error); }
+
+    .pc-label {
+      margin-top: .55rem;
+      font-size: clamp(2.5rem, 4.4vw, 4.8rem);
+      font-weight: 950;
+      line-height: 1;
+      letter-spacing: -.04em;
+      text-align: center;
+    }
+
+    .pc-scene.two-pcs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .connection {
+      display: grid;
+      place-items: center;
+      gap: .4rem;
+      color: var(--muted);
+      font-size: clamp(2.3rem, 5vw, 5rem);
+    }
+
+    .connection b { color: var(--error); font-size: .5em; letter-spacing: .12em; }
+
+    .uuid {
+      max-width: 95vw;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(1.8rem, 4.7vw, 5.8rem);
+      font-weight: 850;
+      line-height: 1.35;
+      letter-spacing: -.06em;
+      overflow-wrap: anywhere;
+    }
+
+    .ban-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: clamp(1rem, 2vw, 2rem);
+      max-width: 90vw;
+    }
+
+    .ban-item {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: clamp(8rem, 13vw, 14rem);
+      aspect-ratio: 1;
+      border: .12em solid #bc3f48;
+      border-radius: 50%;
+      background: var(--error-surface);
+      font-size: clamp(2.4rem, 5vw, 5.2rem);
+    }
+
+    .ban-item::after {
+      content: "";
+      position: absolute;
+      width: 82%;
+      height: .1em;
+      border-radius: 1em;
+      background: var(--error);
+      transform: rotate(-43deg);
+      box-shadow: 0 0 1rem rgb(138 39 49 / 20%);
+    }
+
+    .ban-item small {
+      position: absolute;
+      bottom: -1.8em;
+      color: var(--ink);
+      font-size: clamp(.75rem, 1.3vw, 1.3rem);
+      letter-spacing: .07em;
+    }
+
+    .ban-item svg {
+      width: 56%;
+      height: 56%;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2.2;
+    }
+
+    .oral-scene {
+      display: grid;
+      grid-template-columns: 1fr minmax(16rem, 2fr) 1fr;
+      align-items: end;
+      gap: clamp(1rem, 3vw, 3rem);
+      width: min(94vw, 120rem);
+    }
+
+    .oral-scene img {
+      width: 100%;
+      max-height: 44vh;
+      object-fit: contain;
+      filter: drop-shadow(0 1.3rem 2rem rgb(0 0 0 / 20%));
+    }
+
+    .speech {
+      align-self: start;
+      position: relative;
+      padding: clamp(1.2rem, 2.5vw, 2.8rem);
+      border: .2rem solid var(--ink);
+      border-radius: 2rem;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(1.2rem, 2.5vw, 2.9rem);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      box-shadow: 0 1.4rem 3rem rgb(68 67 62 / 16%);
+    }
+
+    .speech::after {
+      content: "";
+      position: absolute;
+      left: -1.25rem;
+      bottom: 1.8rem;
+      width: 2.2rem;
+      aspect-ratio: 1;
+      background: var(--ink);
+      clip-path: polygon(100% 0, 100% 100%, 0 50%);
+    }
+
+    .pain-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(.8rem, 2vw, 1.8rem);
+      width: min(85vw, 80rem);
+      font-size: clamp(1.7rem, 3.8vw, 4rem);
+      text-align: left;
+    }
+
+    .pain-list div {
+      padding: .5em .65em;
+      border-left: .2em solid var(--error);
+      background: var(--surface);
+    }
+
+    .pain-list div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+    .mapping-table {
+      display: grid;
+      grid-template-columns: max-content max-content minmax(0, 1fr);
+      align-items: stretch;
+      width: min(92vw, 92rem);
+      border-top: .12rem solid var(--border-subtle);
+      font-size: clamp(1.1rem, 2.1vw, 2.25rem);
+      line-height: 1.25;
+      text-align: left;
+    }
+
+    .mapping-row { display: contents; }
+
+    .mapping-row > * {
+      display: flex;
+      align-items: center;
+      padding: .48em .62em;
+      border-bottom: .12rem solid var(--border-subtle);
+      background: rgb(255 255 255 / 72%);
+    }
+
+    .mapping-row .mapping-bits,
+    .mapping-row .mapping-symbol {
+      color: var(--brand-ink);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-weight: 900;
+    }
+
+    .mapping-row .mapping-link {
+      justify-content: center;
+      color: var(--brand-border);
+      font-weight: 950;
+    }
+
+    .mapping-row .mapping-chain { white-space: nowrap; }
+
+    .mapping-row.is-target > * {
+      background: var(--brand-bright);
+      color: var(--brand-ink);
+    }
+
+    .mini-dictionary {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: .35em .55em;
+      width: min(90vw, 76rem);
+      font-size: clamp(1.6rem, 3.2vw, 3.6rem);
+      line-height: 1.2;
+    }
+
+    .mini-dictionary span {
+      padding: .2em .36em;
+      border-bottom: .12em solid var(--brand-border);
+      background: var(--surface);
+    }
+
+    .step-number {
+      display: inline-grid;
+      place-items: center;
+      width: 1.7em;
+      aspect-ratio: 1;
+      margin-right: .22em;
+      border-radius: 50%;
+      background: var(--brand);
+      color: var(--brand-ink);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: .72em;
+      vertical-align: .12em;
+    }
+
+    .demo-chain { font-size: clamp(1.8rem, 4.2vw, 4.9rem); }
+
+    .scale-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: clamp(1rem, 3vw, 3rem);
+      width: min(92vw, 80rem);
+    }
+
+    .scale-number {
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(3.4rem, 8vw, 8.5rem);
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .scale-number small {
+      display: block;
+      margin-top: .55em;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: clamp(1rem, 1.7vw, 1.6rem);
+      letter-spacing: .06em;
+    }
+
+    .scale-arrow { color: var(--brand-border); font-size: clamp(2rem, 5vw, 5rem); }
+
+    .reverse-map {
+      display: grid;
+      justify-items: center;
+      gap: .45rem;
+      width: min(94vw, 86rem);
+    }
+
+    .reverse-chain {
+      padding: .45em .65em;
+      border: .08em solid var(--ink);
+      background: var(--surface);
+      font-size: clamp(1.5rem, 3.1vw, 3.35rem);
+      white-space: nowrap;
+    }
+
+    .reverse-arrow {
+      color: var(--brand-border);
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 1;
+    }
+
+    .reverse-map > .code { font-size: clamp(1.5rem, 3vw, 3rem); }
+
+    .block-pairs {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: clamp(1rem, 2.5vw, 2.5rem);
+      width: min(94vw, 88rem);
+    }
+
+    .block-pair {
+      display: grid;
+      grid-template-columns: 1fr;
+      justify-items: center;
+      gap: .3em;
+      font-size: clamp(1.6rem, 3.5vw, 3.8rem);
+    }
+
+    .block-pair b {
+      width: 100%;
+      padding: .32em .5em;
+      border: .08em solid var(--ink);
+      background: var(--surface);
+    }
+
+    .block-pair i,
+    .block-plus {
+      color: var(--brand-ink);
+      font-style: normal;
+      font-size: clamp(2rem, 4vw, 4rem);
+    }
+
+    .metric-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: center;
+      gap: clamp(1.5rem, 4vw, 4rem);
+      width: 100%;
+    }
+
+    .metric { text-align: center; }
+
+    .metric strong {
+      display: block;
+      color: var(--brand-line);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(3rem, 7.5vw, 8rem);
+      line-height: 1;
+      letter-spacing: -.07em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: .4em;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.7vw, 1.8rem);
+      letter-spacing: .06em;
+    }
+
+    .path-list {
+      display: grid;
+      gap: clamp(.5rem, 1.4vh, 1.2rem);
+      width: min(92vw, 100rem);
+      font-size: clamp(1.2rem, 2.8vw, 3.2rem);
+      line-height: 1.2;
+    }
+
+    .path {
+      display: grid;
+      grid-template-columns: 3.8em 1fr;
+      gap: .8em;
+      align-items: center;
+    }
+
+    .path b {
+      color: var(--brand-line);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: .8em;
+      text-align: right;
+    }
+
+    .path span {
+      padding: .35em .55em;
+      border-left: .2em solid var(--brand-border);
+      background: var(--surface);
+      white-space: nowrap;
+    }
+
+    .block {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: min(88vw, 86rem);
+      min-height: 34vh;
+      padding: clamp(2rem, 4vw, 4rem);
+      border: clamp(.25rem, .5vw, .5rem) solid var(--brand-border);
+      background: var(--brand-surface);
+      box-shadow: .9rem .9rem 0 var(--brand);
+      font-size: clamp(3rem, 8vw, 9rem);
+      line-height: 1;
+      text-align: center;
+    }
+
+    .block small {
+      position: absolute;
+      top: 1.1rem;
+      left: 1.4rem;
+      color: var(--muted);
+      font-size: clamp(.9rem, 1.5vw, 1.5rem);
+      letter-spacing: .1em;
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(.7rem, 2vw, 2rem);
+      width: min(94vw, 105rem);
+      font-size: clamp(1.5rem, 3.5vw, 4rem);
+      line-height: 1.15;
+    }
+
+    .flow b {
+      padding: .4em .55em;
+      border: .08em solid currentColor;
+      background: var(--surface);
+    }
+
+    .flow i { color: var(--brand-border); font-style: normal; }
+
+    .sample-output {
+      width: min(92vw, 110rem);
+      color: var(--muted);
+      font-size: clamp(1.2rem, 2.25vw, 2.7rem);
+      font-weight: 750;
+      line-height: 1.75;
+      text-align: left;
+    }
+
+    .sample-output b { color: var(--brand-line); }
+    .sample-output .terminal { color: var(--error); white-space: nowrap; }
+
+    .sample-meta {
+      display: inline-flex;
+      gap: .7em;
+      padding: .45em .7em;
+      border-left: .25em solid var(--brand);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(1rem, 1.8vw, 1.9rem);
+    }
+
+    .check-list {
+      display: grid;
+      gap: clamp(.8rem, 2vh, 1.8rem);
+      width: min(84vw, 72rem);
+      font-size: clamp(1.6rem, 3.5vw, 3.8rem);
+      text-align: left;
+    }
+
+    .check-list div::before {
+      content: "✓";
+      display: inline-grid;
+      place-items: center;
+      width: 1.35em;
+      aspect-ratio: 1;
+      margin-right: .55em;
+      border-radius: 50%;
+      background: var(--success);
+      color: var(--surface);
+      font-size: .7em;
+    }
+
+    .links {
+      display: grid;
+      gap: 1rem;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: clamp(1rem, 2vw, 2.1rem);
+      font-weight: 700;
+    }
+
+    .links a { color: var(--info); text-decoration: none; }
+
+    .help {
+      position: absolute;
+      left: 2rem;
+      bottom: 1.35rem;
+      color: var(--subtle);
+      font-size: clamp(.7rem, 1vw, 1rem);
+      letter-spacing: .07em;
+    }
+
+    #progress {
+      position: fixed;
+      z-index: 20;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: .35rem;
+      background: #e3e1d7;
+    }
+
+    #progress-bar {
+      width: 0;
+      height: 100%;
+      transform-origin: left;
+      background: var(--brand);
+      transition: width 220ms ease;
+    }
+
+    .nav-zone {
+      position: fixed;
+      z-index: 10;
+      top: 0;
+      width: 16vw;
+      height: 100vh;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .nav-zone:focus-visible {
+      opacity: 1;
+      outline: .18rem solid var(--brand-border);
+      outline-offset: -.4rem;
+    }
+
+    #previous { left: 0; }
+    #next { right: 0; }
+
+    @media (max-aspect-ratio: 5 / 4) {
+      .slide.split { flex-direction: column; gap: 2rem; }
+      .oral-scene { grid-template-columns: 1fr 1.4fr; }
+      .oral-scene img:last-child { display: none; }
+      .pc-scene { gap: 1rem; }
+      .ban-list { gap: 2.4rem 1rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .slide.is-active { animation: none; }
+      #progress-bar { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main id="deck" aria-live="polite">
+    <!-- 表紙。「この世のすべて」は厳密には任意バイト列のこと。最初は勢いを優先する。 -->
+    <section class="slide center stack" data-title="表紙">
+      <p class="eyebrow">Lightning Talk / KCB1</p>
+      <h1 class="wide">この世のすべてを<br><span class="accent">しりとり</span>に変換する</h1>
+      <p class="sub"><strong>仮名チェーンブロック符号</strong>を作った</p>
+      <span class="help">← → / Space：移動　F：全画面</span>
+    </section>
+
+    <!-- まず開発のきっかけから入る。 -->
+    <section class="slide center light" data-title="きっかけ"><h1 class="xl">きっかけ</h1></section>
+
+    <!-- プロジェクトルームには2台のPCがある。 -->
+    <section class="slide explain" data-title="2台のPC"><h1 class="explain-title">2台のPCがある</h1><div class="explain-content visual-center"><div class="pc-scene two-pcs"><div><div class="pc"><span class="pc-icon">🖥️</span></div><p class="pc-label">PC A</p></div><div><div class="pc"><span class="pc-icon">🖥️</span></div><p class="pc-label">PC B</p></div></div></div></section>
+
+    <!-- 3ページ目と同じ2台へ、ネットワーク接続の有無を書き足す。 -->
+    <section class="slide explain" data-title="ネットワーク環境"><h1 class="explain-title">ネットワーク環境が違う</h1><div class="explain-content visual-center"><div class="pc-scene two-pcs"><div><div class="pc with-status"><div class="pc-status connected"><span aria-hidden="true">🌐</span><strong>インターネット<br>接続あり</strong></div><span class="pc-icon">🖥️</span></div><p class="pc-label">PC A</p></div><div><div class="pc with-status"><div class="pc-status disconnected"><span aria-hidden="true">🚫</span><strong>インターネット<br>接続なし</strong></div><span class="pc-icon">🖥️</span></div><p class="pc-label">PC B</p></div></div></div></section>
+
+    <!-- 左から右へ、UUIDを含む数百文字の英文を移したい日が来た。 -->
+    <section class="slide explain" data-title="転送したいデータ"><p class="eyebrow">Transfer target</p><h1 class="explain-title">転送したいデータ</h1><div class="explain-content"><p class="explain-lead">UUIDを含む<br>数百文字の英文</p><div><p class="bit-caption">UUIDの例</p><p class="uuid accent">550e8400-e29b-41d4-a716-446655440000</p></div></div></section>
+
+    <!-- USB、カメラ、マイク、Bluetooth、Wi-Fiはすべて禁止。QRコードもカメラが起動せず断念。 -->
+    <section class="slide explain red" data-title="使えない転送経路"><h1 class="explain-title">転送経路は全部使えない</h1><div class="explain-content visual-center"><div class="ban-list" aria-label="USB、カメラ、マイク、Bluetooth、Wi-Fiは禁止"><div class="ban-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V4M12 4L9 7M12 4l3 3M12 13L7 9M7 9H5M12 16l5-4M17 12h2M4 9a1.5 1.5 0 1 0 3 0M19 10h3v3h-3z"/></svg><small>USB</small></div><div class="ban-item">🎥<small>CAMERA</small></div><div class="ban-item">🎙️<small>MIC</small></div><div class="ban-item">ᛒ<small>Bluetooth</small></div><div class="ban-item">📶<small>Wi-Fi</small></div></div></div></section>
+
+    <!-- こうなってしまっては仕方ない。人間が読み上げ、人間が書き取った。 -->
+    <section class="slide explain light" data-title="口頭伝達"><h1 class="explain-title">結局 口頭で伝えた</h1><div class="explain-content visual-center"><div class="oral-scene"><img src="slide-assets/speaker.png" alt="パソコンを見ながら読み上げる人"><div class="speech">ごー ごー ぜろ イー<br>はち よん ぜろ ぜろ<br>ハイフン イー に きゅう ビー…</div><img src="slide-assets/listener.png" alt="泣きながらパソコンへ書き取る人"></div></div></section>
+
+    <!-- 文字列の口頭伝達は、読み間違い・読み飛ばし・聞き間違い・聞き逃し・スペルミスが怖い。 -->
+    <section class="slide explain" data-title="口頭伝達のつらさ"><h1 class="explain-title">口頭伝達はミスが怖い</h1><div class="explain-content"><div class="pain-list"><div>読み間違い</div><div>聞き間違い</div><div>読み飛ばし</div><div>聞き逃し</div><div>スペルミス</div></div></div></section>
+
+    <!-- もっと読み上げやすく、ミスに気づける表現へ変換できないか。 -->
+    <section class="slide center stack light" data-title="欲しかったもの"><h1 class="wide">読み上げやすく</h1><h1 class="wide accent-pink">ミスに気づける</h1><p class="sub">そんな表現に変換できれば……</p></section>
+
+    <!-- 答えはしりとり。接続が崩れれば、その場で違和感が出る。 -->
+    <section class="slide center green" data-title="答えはしりとり"><h1 class="wide xl">しりとり</h1></section>
+
+    <!-- ここで発明の名前を出し、後続で用語を順に分解する。 -->
+    <section class="slide center cyan" data-title="仮名チェーンブロック符号"><h1 class="wide xl">仮名チェーン<br>ブロック符号</h1></section>
+
+    <!-- まず「符号」から分解する。 -->
+    <section class="slide center light" data-title="符号"><h1 class="wide xl">仮名チェーンブロック<span class="underline">符号</span></h1></section>
+
+    <!-- 情報分野の符号は、情報と表現の対応規則。暗号とは限らない。 -->
+    <section class="slide explain" data-title="符号とは">
+      <p class="eyebrow">Code</p>
+      <h1 class="explain-title">符号とは</h1>
+      <div class="explain-content">
+        <div class="equation"><span>情報</span><span class="arrow">⇄</span><span>表現</span></div>
+        <p class="sub">情報を、決められた規則で<br><strong>別の記号へ対応づける</strong></p>
+      </div>
+    </section>
+
+    <!-- Base64は6ビットのビット列と文字を対応づける。010010はS。 -->
+    <section class="slide explain light" data-title="Base64の例">
+      <p class="eyebrow">Example</p>
+      <h1 class="explain-title">Base64の場合</h1>
+      <div class="explain-content">
+        <p class="sub">6bitのビット列に対して<strong>文字を対応づける</strong></p>
+        <div class="equation"><span class="code">010010</span><span class="arrow">⇄</span><span class="code">S</span></div>
+        <div class="mapping-table" aria-label="Base64変換表の一部">
+          <div class="mapping-row"><span class="mapping-bits">000000</span><span class="mapping-link">⇄</span><span class="mapping-symbol">A</span></div>
+          <div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-symbol">S</span></div>
+          <div class="mapping-row"><span class="mapping-bits">111111</span><span class="mapping-link">⇄</span><span class="mapping-symbol">/</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 次に「ブロック符号」。 -->
+    <section class="slide center yellow" data-title="ブロック符号"><h1 class="wide xl">仮名チェーン<span class="underline">ブロック符号</span></h1></section>
+
+    <!-- 一定のまとまりを単位に変換する。KCB1では通常35語。 -->
+    <section class="slide explain" data-title="ブロック符号とは">
+      <p class="eyebrow">Block Code</p>
+      <h1 class="explain-title">ブロック符号とは</h1>
+      <div class="explain-content">
+        <div class="flow"><b>データのまとまり</b><i>⇄</i><b>符号のまとまり</b></div>
+        <p class="sub">1個ずつではなく、<strong>ブロック単位</strong>で対応づける</p>
+      </div>
+    </section>
+
+    <!-- 最後に「仮名チェーン」。 -->
+    <section class="slide center pink" data-title="仮名チェーン"><h1 class="wide xl"><span class="underline">仮名チェーン</span>ブロック符号</h1></section>
+
+    <!-- 仮名チェーンはしりとり。答えと接続例を1枚で見せる。 -->
+    <section class="slide explain" data-title="しりとり">
+      <h1 class="explain-title">仮名チェーンはしりとり</h1>
+      <div class="explain-content"><div class="word-chain demo-chain" aria-label="あさ、さかな、なみ、みかん"><span>あ<em>さ</em></span><span class="join">→</span><span><em>さ</em>か<em>な</em></span><span class="join">→</span><span><em>な</em><em>み</em></span><span class="join">→</span><span><em>み</em>かん</span></div></div>
+    </section>
+
+    <!-- 名前を再結合する。 -->
+    <section class="slide center cyan" data-title="KCBC"><div><p class="eyebrow">Kana Chain Block Code</p><h1 class="wide xl">KCBC</h1></div></section>
+
+    <!-- 発明の一文定義。 -->
+    <section class="slide center stack" data-title="一文定義"><h1 class="wide">任意の<span class="accent-yellow">バイト列</span>を<br><span class="accent">しりとり</span>へ</h1><p class="sub"><strong>可逆変換</strong>するアルゴリズムです</p></section>
+
+    <!-- ここから仕組み。 -->
+    <section class="slide center cyan" data-title="KCBCのしくみ"><h1 class="wide">KCBCの<br>しくみ</h1></section>
+
+    <!-- 説明用の小さな辞書から、KCBCの対応規則を段階的に見る。 -->
+    <section class="slide explain" data-title="小さな辞書">
+      <h1 class="explain-title"><span class="step-number">1</span>単語を用意する</h1>
+      <div class="explain-content"><div class="mini-dictionary" aria-label="説明用の小さな辞書"><span>あさ</span><span>さけ</span><span>さる</span><span>けいと</span><span>けむり</span><span>るす</span><span>とり</span><span>りす</span><span>すし</span><span>すな</span><span>なみ</span><span>みそ</span><span>しか</span><span>かさ</span></div><p class="sub">まずは<strong>説明用の14語</strong>だけ</p></div>
+    </section>
+
+    <!-- 辞書の単語は、末尾かなから始まる次の語へつなげられる。 -->
+    <section class="slide explain light" data-title="しりとりを作る">
+      <h1 class="explain-title"><span class="step-number">2</span>しりとりを作る</h1>
+      <div class="explain-content"><div class="word-chain demo-chain"><span>あ<em>さ</em></span><span class="join">→</span><span><em>さ</em>け</span><span class="join">→</span><span><em>け</em>いと</span><span class="join">→</span><span><em>と</em>り</span><span class="join">→</span><span><em>り</em>す</span><span class="join">→</span><span><em>す</em>し</span></div><p class="sub">辞書の選び方で、いくつもの列を作れる</p></div>
+    </section>
+
+    <!-- 説明用として、6ビット値と作れるしりとりを対応づける。 -->
+    <section class="slide explain" data-title="対応表を作る">
+      <h1 class="explain-title"><span class="step-number">3</span>対応表を作る</h1>
+      <div class="explain-content"><p class="sub">6bitの値に<strong>しりとりを対応づける</strong></p><div class="mapping-table" aria-label="説明用のKCBC対応表">
+          <div class="mapping-row"><span class="mapping-bits">010000</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けむり → りす → すな → なみ</span></div>
+          <div class="mapping-row"><span class="mapping-bits">010001</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さる → るす → すし → しか → かさ</span></div>
+          <div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けいと → とり → りす → すし</span></div>
+        </div><p class="bit-caption">※ 説明用の対応例</p></div>
+    </section>
+
+    <!-- 入力010010に対応する行を、表から選ぶ。 -->
+    <section class="slide explain yellow" data-title="010010を探す">
+      <h1 class="explain-title"><span class="step-number">4</span><span class="code">010010</span>を探す</h1>
+      <div class="explain-content"><div class="mapping-table" aria-label="010010に対応する行"><div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けいと → とり → りす → すし</span></div></div></div>
+    </section>
+
+    <!-- 対応表の右側を読めば、010010はこのしりとりになる。 -->
+    <section class="slide explain" data-title="010010の変換結果">
+      <h1 class="explain-title"><span class="step-number">5</span>この列を選ぶ</h1>
+      <div class="explain-content"><div class="word-chain demo-chain"><span>あさ</span><span class="join">→</span><span>さけ</span><span class="join">→</span><span>けいと</span><span class="join">→</span><span>とり</span><span class="join">→</span><span>りす</span><span class="join">→</span><span>すし</span></div><p class="sub"><span class="code">010010</span> は<strong>このしりとりになる</strong></p></div>
+    </section>
+
+    <!-- 同じ対応表を逆向きに使えば元のビット列へ戻せる。 -->
+    <section class="slide explain light" data-title="逆変換">
+      <h1 class="explain-title"><span class="step-number">6</span>逆向きにも読める</h1>
+      <div class="explain-content"><div class="reverse-map"><div class="reverse-chain">あさ → さけ → けいと → とり → りす → すし</div><div class="reverse-arrow">⇅</div><b class="code">010010</b></div><p class="sub">だから<strong>元のデータへ戻せる</strong></p></div>
+    </section>
+
+    <!-- 実際の符号表は数千語。語を増やして巨大な対応空間を作る。 -->
+    <section class="slide center stack" data-title="数千語へ拡張">
+      <h1 class="wide">実際は<span class="accent">数千語</span></h1>
+      <div class="scale-row"><div class="scale-number">14<small>説明用</small></div><div class="scale-arrow">→</div><div class="scale-number accent">数千<small>実際の辞書</small></div></div>
+      <p class="sub">語を増やすほど、表せるビット列も増える</p>
+    </section>
+
+    <!-- 数千語の実辞書を使ったUUIDの変換例。 -->
+    <section class="slide explain" data-title="UUIDの変換例"><p class="eyebrow">実際の変換例</p><h1 class="explain-title">UUIDを変換すると</h1><div class="explain-content"><div class="sample-output"><b>あいこ</b> こおり りょひ ひがし しかた たすう うずまき きゅう うろこ こめ めいし しょうちょう …<br>けんち ちず ずけい いつつ つぼみ みおくり りょひ ひかげ げんし しゅみ … <span class="terminal">くうかん</span></div><div class="sample-meta"><span>UUID</span><span>⇄</span><span>しりとり</span></div></div></section>
+
+    <!-- 長いデータは複数のブロックへ分け、それぞれをしりとりへ変換する。 -->
+    <section class="slide explain yellow" data-title="ブロックに分ける"><h1 class="explain-title">長いデータはブロックに分ける</h1><div class="explain-content"><div class="block-pairs"><div class="block-pair"><b>データ①</b><i>⇅</i><b>しりとり①</b></div><div class="block-plus">＋</div><div class="block-pair"><b>データ②</b><i>⇅</i><b>しりとり②</b></div></div></div></section>
+
+    <!-- 前のブロックの末尾かなで、次のブロックを始める。 -->
+    <section class="slide explain light" data-title="ブロック間もつなぐ"><h1 class="explain-title">ブロックの境目もつなぐ</h1><div class="explain-content"><div class="word-chain demo-chain"><span>…り<em>す</em></span><span class="join">→</span><span><em>す</em>な…</span></div><p class="sub">ブロックが変わっても、かなのチェーンは続く</p></div></section>
+
+    <!-- 接続・辞書・最後の検査によって、書き取りミスへ気づきやすくする。 -->
+    <section class="slide explain" data-title="ミスを検出する"><h1 class="explain-title">ミスを検出する</h1><div class="explain-content"><div class="check-list"><div>しりとりがつながらない</div><div>辞書にない語になった</div><div>最後の検査に通らない</div></div><p class="sub">※ 誤り訂正ではなく、<strong>検出</strong></p></div></section>
+
+    <!-- 冒頭の「すべて」を、任意バイト列という技術的な意味で回収する。 -->
+    <section class="slide center stack green" data-title="まとめ"><h1 class="wide">任意バイト列<br>⇄<br>しりとり</h1><p class="sub" style="color:var(--brand-ink)"><strong>この世のすべてを、しりとりに。</strong></p></section>
+
+    <!-- 実装とデモへの導線。ここで締める。 -->
+    <section class="slide center stack" data-title="デモとリポジトリ"><p class="eyebrow">Kana Chain Block Code / KCB1</p><h1 class="wide">遊べます。</h1><div class="links"><a href="https://kanachain.mujuko.workers.dev">kanachain.mujuko.workers.dev</a><a href="https://github.com/mujuko/kanachain">github.com/mujuko/kanachain</a></div><p class="sub">ありがとうございました</p></section>
+  </main>
+
+  <button id="previous" class="nav-zone" type="button" aria-label="前のスライド"></button>
+  <button id="next" class="nav-zone" type="button" aria-label="次のスライド"></button>
+  <div id="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+
+  <script>
+    (() => {
+      const slides = [...document.querySelectorAll(".slide")];
+      const progressBar = document.querySelector("#progress-bar");
+      let current = 0;
+      let touchStartX = null;
+
+      slides.forEach((slide, index) => {
+        slide.dataset.index = String(index + 1).padStart(2, "0");
+        slide.setAttribute("role", "group");
+        slide.setAttribute("aria-roledescription", "slide");
+        slide.setAttribute("aria-label", `${index + 1} / ${slides.length}：${slide.dataset.title ?? ""}`);
+      });
+
+      function indexFromHash() {
+        const value = Number(location.hash.replace("#", ""));
+        return Number.isInteger(value) && value >= 1 && value <= slides.length ? value - 1 : 0;
+      }
+
+      function show(index, updateHash = true) {
+        current = Math.max(0, Math.min(index, slides.length - 1));
+        slides.forEach((slide, slideIndex) => {
+          const active = slideIndex === current;
+          slide.classList.toggle("is-active", active);
+          slide.toggleAttribute("inert", !active);
+          slide.setAttribute("aria-hidden", String(!active));
+        });
+        progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
+        document.title = `${slides[current].dataset.title} — KCBC`;
+        if (updateHash) history.replaceState(null, "", `#${current + 1}`);
+      }
+
+      function next() { show(current + 1); }
+      function previous() { show(current - 1); }
+
+      document.addEventListener("keydown", (event) => {
+        if (["ArrowRight", "PageDown", " ", "Enter"].includes(event.key)) {
+          event.preventDefault();
+          next();
+        } else if (["ArrowLeft", "PageUp", "Backspace"].includes(event.key)) {
+          event.preventDefault();
+          previous();
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          show(0);
+        } else if (event.key === "End") {
+          event.preventDefault();
+          show(slides.length - 1);
+        } else if (event.key.toLowerCase() === "f") {
+          event.preventDefault();
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+          else document.exitFullscreen?.();
+        }
+      });
+
+      document.querySelector("#next").addEventListener("click", next);
+      document.querySelector("#previous").addEventListener("click", previous);
+      window.addEventListener("hashchange", () => show(indexFromHash(), false));
+      document.addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX ?? null; }, { passive: true });
+      document.addEventListener("touchend", (event) => {
+        if (touchStartX === null) return;
+        const delta = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
+        if (Math.abs(delta) > 50) delta < 0 ? next() : previous();
+        touchStartX = null;
+      }, { passive: true });
+
+      show(indexFromHash(), false);
+    })();
+  </script>
+</body>
+</html>

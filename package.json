@@ -1,0 +1,20 @@
+{
+  "name": "kanachain-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/js",
+    "apps/demo"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present && node --test \"test/*.test.mjs\"",
+    "test:py": "uv run --project packages/py --group dev python -m pytest -q",
+    "test:cross": "uv run --project packages/py python scripts/cross_language_test.py",
+    "sync:codebook": "node scripts/dictionary/sync-codebook.mjs",
+    "build:vectors": "node scripts/build-vectors.mjs",
+    "check:codebook": "node scripts/dictionary/sync-codebook.mjs && git diff --exit-code -- dictionary/05-output/codebook.json packages/js/codebook.json packages/py/src/kanachain/codebook.json"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

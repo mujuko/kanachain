@@ -1,0 +1,61 @@
+{
+  "name": "@mujuko/kanachain",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Kana Chain Block Code (KCBC): serialize any bytes into Japanese shiritori that chains across blocks",
+  "keywords": [
+    "shiritori",
+    "kana",
+    "japanese",
+    "encoding",
+    "serialization",
+    "しりとり"
+  ],
+  "license": "MIT",
+  "author": "mujuko",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mujuko/kanachain.git",
+    "directory": "packages/js"
+  },
+  "homepage": "https://github.com/mujuko/kanachain#readme",
+  "bugs": "https://github.com/mujuko/kanachain/issues",
+  "imports": {
+    "#deflate": {
+      "browser": "./src/deflate.browser.mjs",
+      "default": "./src/deflate.mjs"
+    },
+    "#codebook-source": {
+      "browser": "./src/codebook-source.browser.mjs",
+      "default": "./src/codebook-source.mjs"
+    }
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "types": "./src/codec.d.mts",
+  "exports": {
+    ".": {
+      "types": "./src/codec.d.mts",
+      "default": "./src/codec.mjs"
+    },
+    "./codebook.json": "./codebook.json"
+  },
+  "bin": {
+    "kanachain": "src/cli.mjs"
+  },
+  "files": [
+    "src",
+    "codebook.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "info": "node src/cli.mjs info"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

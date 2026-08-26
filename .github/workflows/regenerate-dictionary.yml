@@ -1,0 +1,28 @@
+name: Regenerate dictionary
+
+# 国立国語研究所への通信を伴うため、通常のCIからは分離して手動で実行する。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci
+      - name: 辞書を再生成する
+        run: uv run --python 3.12 --no-project scripts/dictionary/generate.py
+      - name: 符号表を配置する
+        run: npm run sync:codebook
+      - name: 生成物が committed 版と一致するか
+        run: git diff --exit-code
+      - name: テストを実行する
+        run: npm test

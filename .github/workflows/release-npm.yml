@@ -1,0 +1,27 @@
+name: Release npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npmのTrusted Publishingに必要。NPM_TOKENは使わない。
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: npmを最新にする
+        run: npm install -g npm@latest
+      - run: npm publish --access public --workspace @mujuko/kanachain

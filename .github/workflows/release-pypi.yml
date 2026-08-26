@@ -1,0 +1,29 @@
+name: Release PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      # PyPIのTrusted Publishingに必要。APIトークンは使わない。
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: テストを実行する
+        run: uv run --project packages/py --group dev python -m pytest -q
+        env:
+          PYTHONIOENCODING: utf-8
+      - name: ビルドする
+        run: uv build --project packages/py --out-dir dist
+      - name: 公開する
+        run: uv publish --trusted-publishing always dist/*
