@@ -94,9 +94,9 @@ function chainBreakMessage(chainBreak: ChainBreak): string {
 }
 
 function validationStateLabel(state: Exclude<BlockValidationState, "unverified">): string {
-  if (state === "success") return "検証成功";
+  if (state === "success") return "破損なし";
   if (state === "chain-invalid") return "しりとり不成立";
-  return "検証失敗";
+  return "データ破損";
 }
 
 function validationStateMark(state: BlockValidationState): string {
