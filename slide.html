@@ -1,1137 +1,2343 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="light">
-  <title>仮名チェーンブロック符号を作った</title>
-  <style>
-    :root {
-      /* Walime color tokens: paper, ink, brand, then semantic colors. */
-      --paper: #fafaf7;
-      --surface: #ffffff;
-      --surface-subtle: #f2f1ea;
-      --ink: #44433e;
-      --ink-strong: #2f2f2b;
-      --muted: #5d5b55;
-      --subtle: #78766d;
-      --border-subtle: #cfccc0;
-      --border: #78766d;
-      --brand-surface: #fafceb;
-      --brand-bright: #d8e653;
-      --brand: #afc514;
-      --brand-line: #90a70d;
-      --brand-border: #90a70d;
-      --brand-deep: #afc514;
-      --brand-ink: #2c3702;
-      --success-surface: #edf6f0;
-      --success: #28543d;
-      --error-surface: #fff0f0;
-      --error: #8a2731;
-      --warning-surface: #fff7dc;
-      --warning: #6e4900;
-      --info-surface: #eef6fa;
-      --info: #174e70;
-      /* Compatibility aliases used by the existing slide compositions. */
-      --cyan: var(--brand-line);
-      --yellow: var(--brand);
-      --pink: var(--error);
-      --green: var(--success);
-      --red: var(--error);
-      --slide-pad: clamp(2rem, 5vw, 6rem);
-      font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
-    }
-
-    * { box-sizing: border-box; }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      background: var(--surface-subtle);
-      color: var(--ink);
-    }
-
-    body {
-      font-weight: 700;
-      font-feature-settings: "palt" 1;
-    }
-
-    button { font: inherit; }
-
-    #deck {
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(circle at 90% 12%, rgb(175 197 20 / 14%), transparent 24rem),
-        var(--paper);
-    }
-
-    .slide {
-      position: absolute;
-      inset: 0;
-      display: none;
-      width: 100dvw;
-      height: 100dvh;
-      padding: var(--slide-pad);
-      overflow: hidden;
-      isolation: isolate;
-      background: var(--paper);
-    }
-
-    .slide.is-active {
-      display: flex;
-      animation: enter 260ms cubic-bezier(.2, .8, .2, 1);
-    }
-
-    @keyframes enter {
-      from { opacity: 0; transform: translateX(1.2rem); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    .slide::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: -2;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgb(68 67 62 / 3%) 1px, transparent 1px),
-        linear-gradient(90deg, rgb(68 67 62 / 3%) 1px, transparent 1px);
-      background-size: 4rem 4rem;
-      mask-image: linear-gradient(120deg, black, transparent 70%);
-    }
-
-    .slide::after {
-      content: attr(data-index);
-      position: absolute;
-      right: 2.1rem;
-      bottom: 1.5rem;
-      color: var(--border-subtle);
-      font-size: clamp(.72rem, 1.05vw, 1rem);
-      font-weight: 900;
-      letter-spacing: .12em;
-    }
-
-    .slide.center {
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-
-    .slide.stack {
-      flex-direction: column;
-      justify-content: center;
-      gap: clamp(1.4rem, 3vh, 3rem);
-    }
-
-    .slide.tight-stack { gap: .6rem; }
-    .slide.tight-stack .check-list { gap: .45rem; }
-
-    .slide.split {
-      align-items: center;
-      justify-content: center;
-      gap: clamp(2rem, 6vw, 7rem);
-    }
-
-    .slide.explain {
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: flex-start;
-      gap: clamp(1rem, 2.4vh, 1.8rem);
-      padding-top: clamp(2.2rem, 5vh, 4.2rem);
-      text-align: left;
-    }
-
-    .explain-title {
-      max-width: none;
-      font-size: clamp(2.7rem, 5.3vw, 5.7rem);
-      line-height: 1.04;
-      letter-spacing: -.045em;
-      text-align: left;
-      text-wrap: balance;
-    }
-
-    .explain-content {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      gap: clamp(1rem, 2.5vh, 2rem);
-      min-height: 0;
-      width: 100%;
-    }
-
-    .explain-content.visual-center { align-items: center; }
-
-    .explain-lead {
-      max-width: 19ch;
-      font-size: clamp(2.7rem, 5.8vw, 6.2rem);
-      font-weight: 950;
-      line-height: 1.06;
-      letter-spacing: -.05em;
-      text-wrap: balance;
-    }
-
-    .explain .equation,
-    .explain .flow,
-    .explain .word-chain,
-    .explain .mini-dictionary { justify-content: flex-start; }
-
-    .explain-content.visual-center .equation,
-    .explain-content.visual-center .flow,
-    .explain-content.visual-center .word-chain,
-    .explain-content.visual-center .mini-dictionary { justify-content: center; }
-
-    .explain .sub { text-align: left; }
-    .explain .mapping-table { width: 100%; }
-    .explain .check-list { width: min(100%, 72rem); }
-    .explain .flow,
-    .explain .reverse-map,
-    .explain .block-pairs {
-      width: 100%;
-      max-width: 100%;
-    }
-    .explain .pc-scene,
-    .explain .oral-scene { width: 100%; }
-
-    .slide.light { background: var(--surface); }
-    .slide.cyan { background: var(--brand-surface); }
-    .slide.yellow { background: var(--brand-bright); }
-    .slide.pink { background: var(--surface-subtle); }
-    .slide.red { background: var(--error-surface); }
-    .slide.green { background: var(--brand-bright); }
-
-    h1,
-    h2,
-    p { margin: 0; }
-
-    h1 {
-      max-width: 15ch;
-      font-size: clamp(3.1rem, 7.9vw, 8.4rem);
-      font-weight: 950;
-      line-height: 1.08;
-      letter-spacing: -.045em;
-      text-wrap: balance;
-    }
-
-    h1.wide { max-width: 21ch; }
-    h1.xl { font-size: clamp(4rem, 10.5vw, 11rem); }
-    h1.compact { font-size: clamp(2.8rem, 6.5vw, 7rem); }
-
-    .eyebrow {
-      color: var(--cyan);
-      font-size: clamp(1rem, 1.6vw, 1.6rem);
-      font-weight: 900;
-      letter-spacing: .17em;
-      text-transform: uppercase;
-    }
-
-    .sub {
-      max-width: 44ch;
-      color: var(--muted);
-      font-size: clamp(1.35rem, 2.5vw, 2.7rem);
-      font-weight: 750;
-      line-height: 1.45;
-      text-wrap: balance;
-    }
-
-    .sub strong { color: var(--ink); }
-
-    .accent { color: var(--brand-deep); }
-    .accent-yellow { color: var(--brand-deep); }
-    .accent-pink { color: var(--error); }
-    .accent-green { color: var(--brand-ink); }
-    .danger { color: var(--error); }
-
-    .underline {
-      text-decoration: underline;
-      text-decoration-color: var(--brand);
-      text-decoration-thickness: .11em;
-      text-underline-offset: .13em;
-    }
-
-    .strike {
-      text-decoration: line-through;
-      text-decoration-thickness: .08em;
-      text-decoration-color: var(--error);
-    }
-
-    .equation {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(1rem, 3vw, 3rem);
-      width: 100%;
-      font-size: clamp(2rem, 5vw, 5.8rem);
-      font-weight: 950;
-      line-height: 1.1;
-      letter-spacing: -.04em;
-    }
-
-    .equation .arrow { color: var(--brand-border); }
-
-    .code {
-      padding: .16em .32em .22em;
-      border: .06em solid var(--brand-border);
-      border-radius: .18em;
-      background: var(--brand-surface);
-      color: var(--brand-ink);
-      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-      font-weight: 800;
-      letter-spacing: -.05em;
-      box-shadow: inset 0 0 0 1px rgb(44 55 2 / 12%);
-    }
-
-    .light .code,
-    .yellow .code,
-    .green .code {
-      border-color: var(--brand-border);
-      background: var(--brand-surface);
-      color: var(--brand-ink);
-    }
-
-    .bit-grid {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: .3em;
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(2rem, 4vw, 4.7rem);
-      color: var(--brand-deep);
-    }
-
-    .bit-grid span {
-      display: grid;
-      place-items: center;
-      width: 1.25em;
-      aspect-ratio: 1;
-      border: .06em solid var(--brand-border);
-      background: var(--brand-surface);
-    }
-
-    .bit-caption {
-      color: var(--muted);
-      font-size: clamp(1.1rem, 2vw, 2rem);
-      letter-spacing: .08em;
-    }
-
-    .word-chain {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: center;
-      gap: .2em .36em;
-      max-width: 95vw;
-      font-size: clamp(2.5rem, 6.1vw, 7rem);
-      font-weight: 950;
-      line-height: 1.2;
-      letter-spacing: -.045em;
-    }
-
-    .word-chain .join { color: var(--brand-border); }
-    .word-chain em { color: var(--brand-deep); font-style: normal; }
-
-    .pc-scene {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: clamp(1rem, 5vw, 5rem);
-      width: min(92vw, 125rem);
-    }
-
-    .pc {
-      display: grid;
-      place-items: center;
-      min-width: 0;
-      aspect-ratio: 4 / 3;
-      border: clamp(.35rem, .7vw, .7rem) solid currentColor;
-      border-radius: clamp(1rem, 2vw, 2rem);
-      background: var(--surface);
-      box-shadow: 0 1.5rem 4rem rgb(68 67 62 / 12%);
-    }
-
-    .pc > .pc-icon { font-size: clamp(4rem, 10vw, 10rem); line-height: 1; }
-
-    .pc.with-status {
-      grid-template-rows: 1fr 1fr;
-      padding: clamp(1rem, 2.2vw, 2.5rem);
-    }
-
-    .pc.with-status > .pc-icon { font-size: clamp(3.5rem, 7vw, 7rem); }
-
-    .pc-status {
-      align-self: stretch;
-      display: grid;
-      grid-template-columns: auto auto;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(.6rem, 1.2vw, 1.2rem);
-      width: 100%;
-      border-bottom: .12rem solid var(--border-subtle);
-      text-align: left;
-    }
-
-    .pc-status > span {
-      font-size: clamp(2.5rem, 4.6vw, 4.8rem);
-      line-height: 1;
-    }
-
-    .pc-status strong {
-      font-size: clamp(1.45rem, 2.45vw, 2.6rem);
-      font-weight: 950;
-      line-height: 1.16;
-      letter-spacing: -.03em;
-    }
-
-    .pc-status.connected { color: var(--success); }
-    .pc-status.disconnected { color: var(--error); }
-
-    .pc-label {
-      margin-top: .55rem;
-      font-size: clamp(2.5rem, 4.4vw, 4.8rem);
-      font-weight: 950;
-      line-height: 1;
-      letter-spacing: -.04em;
-      text-align: center;
-    }
-
-    .pc-scene.two-pcs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
-    .connection {
-      display: grid;
-      place-items: center;
-      gap: .4rem;
-      color: var(--muted);
-      font-size: clamp(2.3rem, 5vw, 5rem);
-    }
-
-    .connection b { color: var(--error); font-size: .5em; letter-spacing: .12em; }
-
-    .uuid {
-      max-width: 95vw;
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(1.8rem, 4.7vw, 5.8rem);
-      font-weight: 850;
-      line-height: 1.35;
-      letter-spacing: -.06em;
-      overflow-wrap: anywhere;
-    }
-
-    .ban-list {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: clamp(1rem, 2vw, 2rem);
-      max-width: 90vw;
-    }
-
-    .ban-item {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: clamp(8rem, 13vw, 14rem);
-      aspect-ratio: 1;
-      border: .12em solid #bc3f48;
-      border-radius: 50%;
-      background: var(--error-surface);
-      font-size: clamp(2.4rem, 5vw, 5.2rem);
-    }
-
-    .ban-item::after {
-      content: "";
-      position: absolute;
-      width: 82%;
-      height: .1em;
-      border-radius: 1em;
-      background: var(--error);
-      transform: rotate(-43deg);
-      box-shadow: 0 0 1rem rgb(138 39 49 / 20%);
-    }
-
-    .ban-item small {
-      position: absolute;
-      bottom: -1.8em;
-      color: var(--ink);
-      font-size: clamp(.75rem, 1.3vw, 1.3rem);
-      letter-spacing: .07em;
-    }
-
-    .ban-item svg {
-      width: 56%;
-      height: 56%;
-      fill: none;
-      stroke: currentColor;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      stroke-width: 2.2;
-    }
-
-    .oral-scene {
-      display: grid;
-      grid-template-columns: 1fr minmax(16rem, 2fr) 1fr;
-      align-items: end;
-      gap: clamp(1rem, 3vw, 3rem);
-      width: min(94vw, 120rem);
-    }
-
-    .oral-scene img {
-      width: 100%;
-      max-height: 44vh;
-      object-fit: contain;
-      filter: drop-shadow(0 1.3rem 2rem rgb(0 0 0 / 20%));
-    }
-
-    .speech {
-      align-self: start;
-      position: relative;
-      padding: clamp(1.2rem, 2.5vw, 2.8rem);
-      border: .2rem solid var(--ink);
-      border-radius: 2rem;
-      background: var(--ink);
-      color: var(--paper);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(1.2rem, 2.5vw, 2.9rem);
-      line-height: 1.35;
-      overflow-wrap: anywhere;
-      box-shadow: 0 1.4rem 3rem rgb(68 67 62 / 16%);
-    }
-
-    .speech::after {
-      content: "";
-      position: absolute;
-      left: -1.25rem;
-      bottom: 1.8rem;
-      width: 2.2rem;
-      aspect-ratio: 1;
-      background: var(--ink);
-      clip-path: polygon(100% 0, 100% 100%, 0 50%);
-    }
-
-    .pain-list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: clamp(.8rem, 2vw, 1.8rem);
-      width: min(85vw, 80rem);
-      font-size: clamp(1.7rem, 3.8vw, 4rem);
-      text-align: left;
-    }
-
-    .pain-list div {
-      padding: .5em .65em;
-      border-left: .2em solid var(--error);
-      background: var(--surface);
-    }
-
-    .pain-list div:last-child:nth-child(odd) { grid-column: 1 / -1; }
-
-    .mapping-table {
-      display: grid;
-      grid-template-columns: max-content max-content minmax(0, 1fr);
-      align-items: stretch;
-      width: min(92vw, 92rem);
-      border-top: .12rem solid var(--border-subtle);
-      font-size: clamp(1.1rem, 2.1vw, 2.25rem);
-      line-height: 1.25;
-      text-align: left;
-    }
-
-    .mapping-row { display: contents; }
-
-    .mapping-row > * {
-      display: flex;
-      align-items: center;
-      padding: .48em .62em;
-      border-bottom: .12rem solid var(--border-subtle);
-      background: rgb(255 255 255 / 72%);
-    }
-
-    .mapping-row .mapping-bits,
-    .mapping-row .mapping-symbol {
-      color: var(--brand-ink);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-weight: 900;
-    }
-
-    .mapping-row .mapping-link {
-      justify-content: center;
-      color: var(--brand-border);
-      font-weight: 950;
-    }
-
-    .mapping-row .mapping-chain { white-space: nowrap; }
-
-    .mapping-row.is-target > * {
-      background: var(--brand-bright);
-      color: var(--brand-ink);
-    }
-
-    .mini-dictionary {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: .35em .55em;
-      width: min(90vw, 76rem);
-      font-size: clamp(1.6rem, 3.2vw, 3.6rem);
-      line-height: 1.2;
-    }
-
-    .mini-dictionary span {
-      padding: .2em .36em;
-      border-bottom: .12em solid var(--brand-border);
-      background: var(--surface);
-    }
-
-    .step-number {
-      display: inline-grid;
-      place-items: center;
-      width: 1.7em;
-      aspect-ratio: 1;
-      margin-right: .22em;
-      border-radius: 50%;
-      background: var(--brand);
-      color: var(--brand-ink);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: .72em;
-      vertical-align: .12em;
-    }
-
-    .demo-chain { font-size: clamp(1.8rem, 4.2vw, 4.9rem); }
-
-    .scale-row {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: clamp(1rem, 3vw, 3rem);
-      width: min(92vw, 80rem);
-    }
-
-    .scale-number {
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(3.4rem, 8vw, 8.5rem);
-      font-weight: 950;
-      line-height: 1;
-    }
-
-    .scale-number small {
-      display: block;
-      margin-top: .55em;
-      color: var(--muted);
-      font-family: inherit;
-      font-size: clamp(1rem, 1.7vw, 1.6rem);
-      letter-spacing: .06em;
-    }
-
-    .scale-arrow { color: var(--brand-border); font-size: clamp(2rem, 5vw, 5rem); }
-
-    .reverse-map {
-      display: grid;
-      justify-items: center;
-      gap: .45rem;
-      width: min(94vw, 86rem);
-    }
-
-    .reverse-chain {
-      padding: .45em .65em;
-      border: .08em solid var(--ink);
-      background: var(--surface);
-      font-size: clamp(1.5rem, 3.1vw, 3.35rem);
-      white-space: nowrap;
-    }
-
-    .reverse-arrow {
-      color: var(--brand-border);
-      font-size: clamp(2rem, 4vw, 4rem);
-      line-height: 1;
-    }
-
-    .reverse-map > .code { font-size: clamp(1.5rem, 3vw, 3rem); }
-
-    .block-pairs {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: clamp(1rem, 2.5vw, 2.5rem);
-      width: min(94vw, 88rem);
-    }
-
-    .block-pair {
-      display: grid;
-      grid-template-columns: 1fr;
-      justify-items: center;
-      gap: .3em;
-      font-size: clamp(1.6rem, 3.5vw, 3.8rem);
-    }
-
-    .block-pair b {
-      width: 100%;
-      padding: .32em .5em;
-      border: .08em solid var(--ink);
-      background: var(--surface);
-    }
-
-    .block-pair i,
-    .block-plus {
-      color: var(--brand-ink);
-      font-style: normal;
-      font-size: clamp(2rem, 4vw, 4rem);
-    }
-
-    .metric-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: center;
-      gap: clamp(1.5rem, 4vw, 4rem);
-      width: 100%;
-    }
-
-    .metric { text-align: center; }
-
-    .metric strong {
-      display: block;
-      color: var(--brand-line);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(3rem, 7.5vw, 8rem);
-      line-height: 1;
-      letter-spacing: -.07em;
-    }
-
-    .metric span {
-      display: block;
-      margin-top: .4em;
-      color: var(--muted);
-      font-size: clamp(1rem, 1.7vw, 1.8rem);
-      letter-spacing: .06em;
-    }
-
-    .path-list {
-      display: grid;
-      gap: clamp(.5rem, 1.4vh, 1.2rem);
-      width: min(92vw, 100rem);
-      font-size: clamp(1.2rem, 2.8vw, 3.2rem);
-      line-height: 1.2;
-    }
-
-    .path {
-      display: grid;
-      grid-template-columns: 3.8em 1fr;
-      gap: .8em;
-      align-items: center;
-    }
-
-    .path b {
-      color: var(--brand-line);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: .8em;
-      text-align: right;
-    }
-
-    .path span {
-      padding: .35em .55em;
-      border-left: .2em solid var(--brand-border);
-      background: var(--surface);
-      white-space: nowrap;
-    }
-
-    .block {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: min(88vw, 86rem);
-      min-height: 34vh;
-      padding: clamp(2rem, 4vw, 4rem);
-      border: clamp(.25rem, .5vw, .5rem) solid var(--brand-border);
-      background: var(--brand-surface);
-      box-shadow: .9rem .9rem 0 var(--brand);
-      font-size: clamp(3rem, 8vw, 9rem);
-      line-height: 1;
-      text-align: center;
-    }
-
-    .block small {
-      position: absolute;
-      top: 1.1rem;
-      left: 1.4rem;
-      color: var(--muted);
-      font-size: clamp(.9rem, 1.5vw, 1.5rem);
-      letter-spacing: .1em;
-    }
-
-    .flow {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(.7rem, 2vw, 2rem);
-      width: min(94vw, 105rem);
-      font-size: clamp(1.5rem, 3.5vw, 4rem);
-      line-height: 1.15;
-    }
-
-    .flow b {
-      padding: .4em .55em;
-      border: .08em solid currentColor;
-      background: var(--surface);
-    }
-
-    .flow i { color: var(--brand-border); font-style: normal; }
-
-    .sample-output {
-      width: min(92vw, 110rem);
-      color: var(--muted);
-      font-size: clamp(1.2rem, 2.25vw, 2.7rem);
-      font-weight: 750;
-      line-height: 1.75;
-      text-align: left;
-    }
-
-    .sample-output b { color: var(--brand-line); }
-    .sample-output .terminal { color: var(--error); white-space: nowrap; }
-
-    .sample-meta {
-      display: inline-flex;
-      gap: .7em;
-      padding: .45em .7em;
-      border-left: .25em solid var(--brand);
-      background: var(--surface);
-      color: var(--muted);
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(1rem, 1.8vw, 1.9rem);
-    }
-
-    .check-list {
-      display: grid;
-      gap: clamp(.8rem, 2vh, 1.8rem);
-      width: min(84vw, 72rem);
-      font-size: clamp(1.6rem, 3.5vw, 3.8rem);
-      text-align: left;
-    }
-
-    .check-list div::before {
-      content: "✓";
-      display: inline-grid;
-      place-items: center;
-      width: 1.35em;
-      aspect-ratio: 1;
-      margin-right: .55em;
-      border-radius: 50%;
-      background: var(--success);
-      color: var(--surface);
-      font-size: .7em;
-    }
-
-    .links {
-      display: grid;
-      gap: 1rem;
-      font-family: "Cascadia Code", Consolas, monospace;
-      font-size: clamp(1rem, 2vw, 2.1rem);
-      font-weight: 700;
-    }
-
-    .links a { color: var(--info); text-decoration: none; }
-
-    .help {
-      position: absolute;
-      left: 2rem;
-      bottom: 1.35rem;
-      color: var(--subtle);
-      font-size: clamp(.7rem, 1vw, 1rem);
-      letter-spacing: .07em;
-    }
-
-    #progress {
-      position: fixed;
-      z-index: 20;
-      left: 0;
-      bottom: 0;
-      width: 100%;
-      height: .35rem;
-      background: #e3e1d7;
-    }
-
-    #progress-bar {
-      width: 0;
-      height: 100%;
-      transform-origin: left;
-      background: var(--brand);
-      transition: width 220ms ease;
-    }
-
-    .nav-zone {
-      position: fixed;
-      z-index: 10;
-      top: 0;
-      width: 16vw;
-      height: 100vh;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-      opacity: 0;
-    }
-
-    .nav-zone:focus-visible {
-      opacity: 1;
-      outline: .18rem solid var(--brand-border);
-      outline-offset: -.4rem;
-    }
-
-    #previous { left: 0; }
-    #next { right: 0; }
-
-    @media (max-aspect-ratio: 5 / 4) {
-      .slide.split { flex-direction: column; gap: 2rem; }
-      .oral-scene { grid-template-columns: 1fr 1.4fr; }
-      .oral-scene img:last-child { display: none; }
-      .pc-scene { gap: 1rem; }
-      .ban-list { gap: 2.4rem 1rem; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .slide.is-active { animation: none; }
-      #progress-bar { transition: none; }
-    }
-  </style>
-</head>
-<body>
-  <main id="deck" aria-live="polite">
-    <!-- 表紙。「この世のすべて」は厳密には任意バイト列のこと。最初は勢いを優先する。 -->
-    <section class="slide center stack" data-title="表紙">
-      <p class="eyebrow">Lightning Talk / KCB1</p>
-      <h1 class="wide">この世のすべてを<br><span class="accent">しりとり</span>に変換する</h1>
-      <p class="sub"><strong>仮名チェーンブロック符号</strong>を作った</p>
-      <span class="help">← → / Space：移動　F：全画面</span>
-    </section>
-
-    <!-- まず開発のきっかけから入る。 -->
-    <section class="slide center light" data-title="きっかけ"><h1 class="xl">きっかけ</h1></section>
-
-    <!-- プロジェクトルームには2台のPCがある。 -->
-    <section class="slide explain" data-title="2台のPC"><h1 class="explain-title">2台のPCがある</h1><div class="explain-content visual-center"><div class="pc-scene two-pcs"><div><div class="pc"><span class="pc-icon">🖥️</span></div><p class="pc-label">PC A</p></div><div><div class="pc"><span class="pc-icon">🖥️</span></div><p class="pc-label">PC B</p></div></div></div></section>
-
-    <!-- 3ページ目と同じ2台へ、ネットワーク接続の有無を書き足す。 -->
-    <section class="slide explain" data-title="ネットワーク環境"><h1 class="explain-title">ネットワーク環境が違う</h1><div class="explain-content visual-center"><div class="pc-scene two-pcs"><div><div class="pc with-status"><div class="pc-status connected"><span aria-hidden="true">🌐</span><strong>インターネット<br>接続あり</strong></div><span class="pc-icon">🖥️</span></div><p class="pc-label">PC A</p></div><div><div class="pc with-status"><div class="pc-status disconnected"><span aria-hidden="true">🚫</span><strong>インターネット<br>接続なし</strong></div><span class="pc-icon">🖥️</span></div><p class="pc-label">PC B</p></div></div></div></section>
-
-    <!-- 左から右へ、UUIDを含む数百文字の英文を移したい日が来た。 -->
-    <section class="slide explain" data-title="転送したいデータ"><p class="eyebrow">Transfer target</p><h1 class="explain-title">転送したいデータ</h1><div class="explain-content"><p class="explain-lead">UUIDを含む<br>数百文字の英文</p><div><p class="bit-caption">UUIDの例</p><p class="uuid accent">550e8400-e29b-41d4-a716-446655440000</p></div></div></section>
-
-    <!-- USB、カメラ、マイク、Bluetooth、Wi-Fiはすべて禁止。QRコードもカメラが起動せず断念。 -->
-    <section class="slide explain red" data-title="使えない転送経路"><h1 class="explain-title">転送経路は全部使えない</h1><div class="explain-content visual-center"><div class="ban-list" aria-label="USB、カメラ、マイク、Bluetooth、Wi-Fiは禁止"><div class="ban-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V4M12 4L9 7M12 4l3 3M12 13L7 9M7 9H5M12 16l5-4M17 12h2M4 9a1.5 1.5 0 1 0 3 0M19 10h3v3h-3z"/></svg><small>USB</small></div><div class="ban-item">🎥<small>CAMERA</small></div><div class="ban-item">🎙️<small>MIC</small></div><div class="ban-item">ᛒ<small>Bluetooth</small></div><div class="ban-item">📶<small>Wi-Fi</small></div></div></div></section>
-
-    <!-- こうなってしまっては仕方ない。人間が読み上げ、人間が書き取った。 -->
-    <section class="slide explain light" data-title="口頭伝達"><h1 class="explain-title">結局 口頭で伝えた</h1><div class="explain-content visual-center"><div class="oral-scene"><img src="slide-assets/speaker.png" alt="パソコンを見ながら読み上げる人"><div class="speech">ごー ごー ぜろ イー<br>はち よん ぜろ ぜろ<br>ハイフン イー に きゅう ビー…</div><img src="slide-assets/listener.png" alt="泣きながらパソコンへ書き取る人"></div></div></section>
-
-    <!-- 文字列の口頭伝達は、読み間違い・読み飛ばし・聞き間違い・聞き逃し・スペルミスが怖い。 -->
-    <section class="slide explain" data-title="口頭伝達のつらさ"><h1 class="explain-title">口頭伝達はミスが怖い</h1><div class="explain-content"><div class="pain-list"><div>読み間違い</div><div>聞き間違い</div><div>読み飛ばし</div><div>聞き逃し</div><div>スペルミス</div></div></div></section>
-
-    <!-- もっと読み上げやすく、ミスに気づける表現へ変換できないか。 -->
-    <section class="slide center stack light" data-title="欲しかったもの"><h1 class="wide">読み上げやすく</h1><h1 class="wide accent-pink">ミスに気づける</h1><p class="sub">そんな表現に変換できれば……</p></section>
-
-    <!-- 答えはしりとり。接続が崩れれば、その場で違和感が出る。 -->
-    <section class="slide center green" data-title="答えはしりとり"><h1 class="wide xl">しりとり</h1></section>
-
-    <!-- ここで発明の名前を出し、後続で用語を順に分解する。 -->
-    <section class="slide center cyan" data-title="仮名チェーンブロック符号"><h1 class="wide xl">仮名チェーン<br>ブロック符号</h1></section>
-
-    <!-- まず「符号」から分解する。 -->
-    <section class="slide center light" data-title="符号"><h1 class="wide xl">仮名チェーンブロック<span class="underline">符号</span></h1></section>
-
-    <!-- 情報分野の符号は、情報と表現の対応規則。暗号とは限らない。 -->
-    <section class="slide explain" data-title="符号とは">
-      <p class="eyebrow">Code</p>
-      <h1 class="explain-title">符号とは</h1>
-      <div class="explain-content">
-        <div class="equation"><span>情報</span><span class="arrow">⇄</span><span>表現</span></div>
-        <p class="sub">情報を、決められた規則で<br><strong>別の記号へ対応づける</strong></p>
-      </div>
-    </section>
-
-    <!-- Base64は6ビットのビット列と文字を対応づける。010010はS。 -->
-    <section class="slide explain light" data-title="Base64の例">
-      <p class="eyebrow">Example</p>
-      <h1 class="explain-title">Base64の場合</h1>
-      <div class="explain-content">
-        <p class="sub">6bitのビット列に対して<strong>文字を対応づける</strong></p>
-        <div class="equation"><span class="code">010010</span><span class="arrow">⇄</span><span class="code">S</span></div>
-        <div class="mapping-table" aria-label="Base64変換表の一部">
-          <div class="mapping-row"><span class="mapping-bits">000000</span><span class="mapping-link">⇄</span><span class="mapping-symbol">A</span></div>
-          <div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-symbol">S</span></div>
-          <div class="mapping-row"><span class="mapping-bits">111111</span><span class="mapping-link">⇄</span><span class="mapping-symbol">/</span></div>
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <meta name="color-scheme" content="light" />
+        <title>仮名チェーンブロック符号を作った</title>
+        <style>
+            :root {
+                /* Walime color tokens: paper, ink, brand, then semantic colors. */
+                --paper: #fafaf7;
+                --surface: #ffffff;
+                --surface-subtle: #f2f1ea;
+                --ink: #44433e;
+                --ink-strong: #2f2f2b;
+                --muted: #5d5b55;
+                --subtle: #78766d;
+                --border-subtle: #cfccc0;
+                --border: #78766d;
+                --brand-surface: #fafceb;
+                --brand-bright: #d8e653;
+                --brand: #afc514;
+                --brand-line: #90a70d;
+                --brand-border: #90a70d;
+                --brand-deep: #afc514;
+                --brand-ink: #2c3702;
+                --success-surface: #edf6f0;
+                --success: #28543d;
+                --error-surface: #fff0f0;
+                --error: #8a2731;
+                --warning-surface: #fff7dc;
+                --warning: #6e4900;
+                --info-surface: #eef6fa;
+                --info: #174e70;
+                --cyan: var(--brand-line);
+                --slide-pad: clamp(2rem, 5vw, 6rem);
+                font-family:
+                    "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN",
+                    "Noto Sans JP", system-ui, sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                overflow: hidden;
+                background: var(--surface-subtle);
+                color: var(--ink);
+            }
+
+            body {
+                font-weight: 700;
+                font-feature-settings: "palt" 1;
+            }
+
+            button {
+                font: inherit;
+            }
+
+            #deck {
+                position: fixed;
+                inset: 0;
+                background:
+                    radial-gradient(
+                        circle at 90% 12%,
+                        rgb(175 197 20 / 14%),
+                        transparent 24rem
+                    ),
+                    var(--paper);
+            }
+
+            .slide {
+                position: absolute;
+                inset: 0;
+                display: none;
+                width: 100dvw;
+                height: 100dvh;
+                padding: var(--slide-pad);
+                overflow: hidden;
+                isolation: isolate;
+                background: var(--paper);
+            }
+
+            .slide.is-active {
+                display: flex;
+                animation: enter 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+
+            @keyframes enter {
+                from {
+                    opacity: 0;
+                    transform: translateX(1.2rem);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+
+            .slide::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                z-index: -2;
+                pointer-events: none;
+                background-image:
+                    linear-gradient(rgb(68 67 62 / 3%) 1px, transparent 1px),
+                    linear-gradient(
+                        90deg,
+                        rgb(68 67 62 / 3%) 1px,
+                        transparent 1px
+                    );
+                background-size: 4rem 4rem;
+                mask-image: linear-gradient(120deg, black, transparent 70%);
+            }
+
+            .slide::after {
+                content: attr(data-index);
+                position: absolute;
+                right: 2.1rem;
+                bottom: 1.5rem;
+                color: var(--border-subtle);
+                font-size: clamp(0.72rem, 1.05vw, 1rem);
+                font-weight: 900;
+                letter-spacing: 0.12em;
+            }
+
+            .slide.center {
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .slide.stack {
+                flex-direction: column;
+                justify-content: center;
+                gap: clamp(1.4rem, 3vh, 3rem);
+            }
+
+            .slide.explain {
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                gap: clamp(1rem, 2.4vh, 1.8rem);
+                padding-top: clamp(2.2rem, 5vh, 4.2rem);
+                text-align: left;
+            }
+
+            .explain-title {
+                max-width: none;
+                font-size: clamp(2.7rem, 5.3vw, 5.7rem);
+                line-height: 1.04;
+                letter-spacing: -0.045em;
+                text-align: left;
+                text-wrap: balance;
+            }
+
+            .explain-content {
+                display: flex;
+                flex: 1;
+                flex-direction: column;
+                align-items: flex-start;
+                justify-content: center;
+                gap: clamp(1rem, 2.5vh, 2rem);
+                min-height: 0;
+                width: 100%;
+            }
+
+            .explain-content.visual-center {
+                align-items: center;
+            }
+
+            .explain-lead {
+                max-width: 19ch;
+                font-size: clamp(2.7rem, 5.8vw, 6.2rem);
+                font-weight: 950;
+                line-height: 1.06;
+                letter-spacing: -0.05em;
+                text-wrap: balance;
+            }
+
+            .explain .equation {
+                justify-content: flex-start;
+            }
+
+            .explain-content.visual-center .equation {
+                justify-content: center;
+            }
+
+            .explain .sub {
+                text-align: left;
+            }
+            .explain .pc-scene,
+            .explain .oral-scene {
+                width: 100%;
+            }
+
+            .slide.light {
+                background: var(--surface);
+            }
+            .slide.cyan {
+                background: var(--brand-surface);
+            }
+            .slide.yellow {
+                background: var(--brand-bright);
+            }
+            .slide.red {
+                background: var(--error-surface);
+            }
+
+            h1,
+            h2,
+            p {
+                margin: 0;
+            }
+
+            h1 {
+                max-width: 15ch;
+                font-size: clamp(3.1rem, 7.9vw, 8.4rem);
+                font-weight: 950;
+                line-height: 1.08;
+                letter-spacing: -0.045em;
+                text-wrap: balance;
+            }
+
+            h1.wide {
+                max-width: 21ch;
+            }
+            h1.xl {
+                font-size: clamp(4rem, 10.5vw, 11rem);
+            }
+            h1.compact {
+                font-size: clamp(2.8rem, 6.5vw, 7rem);
+            }
+
+            .eyebrow {
+                color: var(--cyan);
+                font-size: clamp(1rem, 1.6vw, 1.6rem);
+                font-weight: 900;
+                letter-spacing: 0.17em;
+                text-transform: uppercase;
+            }
+
+            .sub {
+                max-width: 44ch;
+                color: var(--muted);
+                font-size: clamp(1.35rem, 2.5vw, 2.7rem);
+                font-weight: 750;
+                line-height: 1.45;
+                text-wrap: balance;
+            }
+
+            .sub strong {
+                color: var(--ink);
+            }
+
+            .accent {
+                color: var(--brand-deep);
+            }
+            .accent-yellow {
+                color: var(--brand-deep);
+            }
+            .accent-pink {
+                color: var(--error);
+            }
+
+            .equation {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: clamp(1rem, 3vw, 3rem);
+                width: 100%;
+                font-size: clamp(2rem, 5vw, 5.8rem);
+                font-weight: 950;
+                line-height: 1.1;
+                letter-spacing: -0.04em;
+            }
+
+            .equation .arrow {
+                color: var(--brand-border);
+            }
+
+            .kcbc-reveal {
+                isolation: isolate;
+            }
+
+            .focus-rays {
+                position: absolute;
+                z-index: -1;
+                inset: -55vmax;
+                pointer-events: none;
+                background: repeating-conic-gradient(
+                    from -3deg,
+                    transparent 0deg 5.7deg,
+                    rgb(103 130 0 / 38%) 5.9deg 6.35deg,
+                    transparent 6.55deg 10deg
+                );
+                mask-image: radial-gradient(
+                    circle at center,
+                    transparent 0 11%,
+                    black 18% 100%
+                );
+                transform: rotate(-1.5deg);
+            }
+
+            .kcbc-reveal h1 {
+                position: relative;
+                text-shadow:
+                    0 0 1.5rem var(--brand-surface),
+                    0 0 3.5rem var(--brand-surface);
+            }
+
+            .concept-center .sub {
+                max-width: none;
+                text-align: center;
+            }
+
+            .question-slide {
+                flex-direction: column;
+                gap: clamp(0.8rem, 2vh, 1.6rem);
+            }
+
+            .question-context {
+                color: var(--muted);
+                font-size: clamp(1.35rem, 2.5vw, 2.7rem);
+                font-weight: 800;
+                letter-spacing: 0.06em;
+            }
+
+            .mapping-doubt {
+                gap: clamp(1.2rem, 3.2vh, 2.8rem);
+            }
+
+            .mapping-doubt .equation {
+                max-width: none;
+                justify-content: center;
+            }
+
+            .doubt-chain {
+                padding: 0.14em 0.3em 0.2em;
+                border: 0.06em dashed var(--error);
+                border-radius: 0.18em;
+                background: var(--error-surface);
+                color: var(--error);
+                font-weight: 900;
+            }
+
+            .mapping-doubt h1 {
+                color: var(--error);
+            }
+
+            .code {
+                padding: 0.16em 0.32em 0.22em;
+                border: 0.06em solid var(--brand-border);
+                border-radius: 0.18em;
+                background: var(--brand-surface);
+                color: var(--brand-ink);
+                font-family:
+                    "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+                font-weight: 800;
+                letter-spacing: -0.05em;
+                box-shadow: inset 0 0 0 1px rgb(44 55 2 / 12%);
+            }
+
+            .light .code,
+            .yellow .code {
+                border-color: var(--brand-border);
+                background: var(--brand-surface);
+                color: var(--brand-ink);
+            }
+
+            .bit-caption {
+                color: var(--muted);
+                font-size: clamp(1.1rem, 2vw, 2rem);
+                letter-spacing: 0.08em;
+            }
+
+            .shiritori-lesson .explain-content {
+                flex: 1;
+                align-items: stretch;
+                justify-content: flex-start;
+                gap: 0;
+                padding-bottom: clamp(2rem, 4vh, 3.5rem);
+            }
+
+            .shiritori-lesson__points {
+                display: grid;
+                gap: clamp(1.8rem, 4.2vh, 3.4rem);
+                width: 100%;
+                margin: 0;
+                padding: clamp(0.6rem, 1.5vh, 1rem) 0 0;
+                list-style: none;
+            }
+
+            .shiritori-lesson__point {
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr);
+                align-items: start;
+                column-gap: 0.4em;
+                width: 100%;
+            }
+
+            .shiritori-lesson__point::before {
+                content: "・";
+                color: var(--ink);
+                font-size: clamp(1.7rem, 3vw, 3.2rem);
+                font-weight: 950;
+                line-height: 1;
+            }
+
+            .shiritori-lesson__point-copy {
+                min-width: 0;
+            }
+
+            .shiritori-lesson__point-ja {
+                color: var(--ink);
+                font-size: clamp(1.45rem, 2.6vw, 2.8rem);
+                font-weight: 850;
+                line-height: 1.12;
+            }
+
+            .shiritori-lesson__point-en {
+                margin-top: 0.2em;
+                color: var(--muted);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(0.9rem, 1.35vw, 1.35rem);
+                font-weight: 700;
+                line-height: 1.35;
+            }
+
+            .shiritori-lesson__point--loss .shiritori-lesson__point-ja {
+                color: var(--error);
+            }
+
+            .shiritori-lesson__point--with-chain {
+                row-gap: clamp(1.5rem, 3.3vh, 2.6rem);
+            }
+
+            .shiritori-lesson__chain {
+                display: flex;
+                grid-column: 1 / -1;
+                align-items: center;
+                justify-content: space-between;
+                gap: clamp(0.45rem, 1.3vw, 1.4rem);
+                width: 100%;
+            }
+
+            .shiritori-lesson__word {
+                display: grid;
+                flex: 1 1 0;
+                min-width: 0;
+                justify-items: center;
+                padding: 0;
+                border: 0;
+                background: transparent;
+            }
+
+            .shiritori-lesson__word strong {
+                font-size: clamp(2.3rem, 5.2vw, 6.8rem);
+                font-weight: 950;
+                line-height: 1;
+                letter-spacing: -0.08em;
+                white-space: nowrap;
+            }
+
+            .shiritori-lesson__word em {
+                color: var(--brand-deep);
+                font-style: normal;
+            }
+
+            .shiritori-lesson__word small {
+                margin-top: 0.45em;
+                color: var(--muted);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(0.75rem, 1.2vw, 1.15rem);
+                font-weight: 700;
+                letter-spacing: 0.04em;
+            }
+
+            .shiritori-lesson__join {
+                display: grid;
+                flex: 0 0 auto;
+                justify-items: center;
+                gap: 0.18em;
+                color: var(--brand-border);
+                font-weight: 950;
+                line-height: 1;
+            }
+
+            .shiritori-lesson__join span {
+                font-size: clamp(1.5rem, 3vw, 3.5rem);
+            }
+
+            .shiritori-lesson__join small {
+                color: var(--muted);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(0.9rem, 1.2vw, 1.25rem);
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            .pc-scene {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                align-items: center;
+                gap: clamp(1rem, 5vw, 5rem);
+                width: min(92vw, 125rem);
+            }
+
+            .pc {
+                display: grid;
+                place-items: center;
+                min-width: 0;
+                aspect-ratio: 4 / 3;
+                border: clamp(0.35rem, 0.7vw, 0.7rem) solid currentColor;
+                border-radius: clamp(1rem, 2vw, 2rem);
+                background: var(--surface);
+                box-shadow: 0 1.5rem 4rem rgb(68 67 62 / 12%);
+            }
+
+            .pc > .pc-icon {
+                font-size: clamp(4rem, 10vw, 10rem);
+                line-height: 1;
+            }
+
+            .pc.with-status {
+                grid-template-rows: 1fr 1fr;
+                padding: clamp(1rem, 2.2vw, 2.5rem);
+            }
+
+            .pc.with-status > .pc-icon {
+                font-size: clamp(3.5rem, 7vw, 7rem);
+            }
+
+            .pc-status {
+                align-self: stretch;
+                display: grid;
+                grid-template-columns: auto auto;
+                align-items: center;
+                justify-content: center;
+                gap: clamp(0.6rem, 1.2vw, 1.2rem);
+                width: 100%;
+                border-bottom: 0.12rem solid var(--border-subtle);
+                text-align: left;
+            }
+
+            .pc-status > span {
+                font-size: clamp(2.5rem, 4.6vw, 4.8rem);
+                line-height: 1;
+            }
+
+            .pc-status strong {
+                font-size: clamp(1.45rem, 2.45vw, 2.6rem);
+                font-weight: 950;
+                line-height: 1.16;
+                letter-spacing: -0.03em;
+            }
+
+            .pc-status.connected {
+                color: var(--success);
+            }
+            .pc-status.disconnected {
+                color: var(--error);
+            }
+
+            .pc-label {
+                margin-top: 0.55rem;
+                font-size: clamp(2.5rem, 4.4vw, 4.8rem);
+                font-weight: 950;
+                line-height: 1;
+                letter-spacing: -0.04em;
+                text-align: center;
+            }
+
+            .pc-scene.two-pcs {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .uuid {
+                max-width: 95vw;
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(1.8rem, 4.7vw, 5.8rem);
+                font-weight: 850;
+                line-height: 1.35;
+                letter-spacing: -0.06em;
+                overflow-wrap: anywhere;
+            }
+
+            .ban-list {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: clamp(1rem, 2vw, 2rem);
+                max-width: 90vw;
+            }
+
+            .ban-item {
+                position: relative;
+                display: grid;
+                place-items: center;
+                width: clamp(8rem, 13vw, 14rem);
+                aspect-ratio: 1;
+                border: 0.12em solid #bc3f48;
+                border-radius: 50%;
+                background: var(--error-surface);
+                font-size: clamp(2.4rem, 5vw, 5.2rem);
+            }
+
+            .ban-item::after {
+                content: "";
+                position: absolute;
+                width: 82%;
+                height: 0.1em;
+                border-radius: 1em;
+                background: var(--error);
+                transform: rotate(-43deg);
+                box-shadow: 0 0 1rem rgb(138 39 49 / 20%);
+            }
+
+            .ban-item small {
+                position: absolute;
+                bottom: -1.8em;
+                color: var(--ink);
+                font-size: clamp(0.75rem, 1.3vw, 1.3rem);
+                letter-spacing: 0.07em;
+            }
+
+            .ban-item svg {
+                width: 56%;
+                height: 56%;
+                fill: none;
+                stroke: currentColor;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                stroke-width: 2.2;
+            }
+
+            .oral-scene {
+                display: grid;
+                grid-template-columns: 1fr minmax(16rem, 2fr) 1fr;
+                align-items: end;
+                gap: clamp(1rem, 3vw, 3rem);
+                width: min(94vw, 120rem);
+            }
+
+            .oral-scene img {
+                width: 100%;
+                max-height: 44vh;
+                object-fit: contain;
+                filter: drop-shadow(0 1.3rem 2rem rgb(0 0 0 / 20%));
+            }
+
+            .speech {
+                align-self: start;
+                position: relative;
+                padding: clamp(1.2rem, 2.5vw, 2.8rem);
+                border: 0.2rem solid var(--ink);
+                border-radius: 2rem;
+                background: var(--ink);
+                color: var(--paper);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(1.2rem, 2.5vw, 2.9rem);
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+                box-shadow: 0 1.4rem 3rem rgb(68 67 62 / 16%);
+            }
+
+            .speech::after {
+                content: "";
+                position: absolute;
+                left: -1.25rem;
+                bottom: 1.8rem;
+                width: 2.2rem;
+                aspect-ratio: 1;
+                background: var(--ink);
+                clip-path: polygon(100% 0, 100% 100%, 0 50%);
+            }
+
+            .pain-list {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: clamp(0.8rem, 2vw, 1.8rem);
+                width: min(85vw, 80rem);
+                font-size: clamp(1.7rem, 3.8vw, 4rem);
+                text-align: left;
+            }
+
+            .pain-list div {
+                padding: 0.5em 0.65em;
+                border-left: 0.2em solid var(--error);
+                background: var(--surface);
+            }
+
+            .pain-list div:last-child:nth-child(odd) {
+                grid-column: 1 / -1;
+            }
+
+            .base64-slide .explain-content {
+                align-items: center;
+                justify-content: flex-start;
+                gap: clamp(0.65rem, 1.35vh, 1.1rem);
+            }
+
+            .base64-slide .equation {
+                justify-content: center;
+                font-size: clamp(2.5rem, 5vw, 5.4rem);
+            }
+
+            .base64-slide .sub {
+                max-width: none;
+                font-size: clamp(1.1rem, 1.9vw, 2rem);
+                text-align: center;
+            }
+
+            .enumeration-slide .explain-content {
+                gap: clamp(0.45rem, 1vh, 0.8rem);
+                justify-content: center;
+            }
+
+            .enumeration-slide .equation {
+                font-size: clamp(2.4rem, 4vw, 4.6rem);
+                transform: translateY(clamp(-3.4rem, -6.8vh, -2.6rem));
+            }
+
+            .base64-grid {
+                display: grid;
+                grid-template-columns: repeat(8, minmax(0, 1fr));
+                width: 100%;
+                border-top: 0.1rem solid var(--border-subtle);
+                border-left: 0.1rem solid var(--border-subtle);
+                font-family: "Cascadia Code", Consolas, monospace;
+            }
+
+            .base64-grid > span {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 0.35em;
+                min-width: 0;
+                padding: clamp(0.22rem, 0.55vh, 0.42rem)
+                    clamp(0.32rem, 0.65vw, 0.65rem);
+                border-right: 0.1rem solid var(--border-subtle);
+                border-bottom: 0.1rem solid var(--border-subtle);
+                background: rgb(255 255 255 / 68%);
+            }
+
+            .base64-grid > span::before {
+                content: attr(data-bits);
+                overflow: hidden;
+                color: var(--muted);
+                font-size: clamp(0.62rem, 0.82vw, 0.86rem);
+                font-weight: 700;
+                letter-spacing: -0.04em;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .base64-grid b {
+                color: var(--brand-ink);
+                font-size: clamp(0.95rem, 1.45vw, 1.5rem);
+                line-height: 1;
+            }
+
+            .base64-grid .is-target {
+                position: relative;
+                z-index: 1;
+                background: var(--brand-bright);
+                box-shadow: inset 0 0 0 0.16rem var(--brand-border);
+            }
+
+            .word-pool {
+                position: relative;
+                width: min(78vw, 74rem);
+                height: clamp(19rem, 51vh, 34rem);
+                border: 0.18rem solid var(--border);
+                border-radius: 50%;
+                background: #f1f6cf;
+                box-shadow: inset 0 0 0 0.08rem rgb(61 61 57 / 9%);
+            }
+
+            .word-pool span {
+                position: absolute;
+                transform: translate(-50%, -50%) rotate(var(--tilt, 0deg));
+                color: var(--ink);
+                font-size: clamp(1.55rem, 2.8vw, 3.15rem);
+                font-weight: 850;
+                letter-spacing: 0.04em;
+                white-space: nowrap;
+            }
+
+            .word-pool span:nth-child(1) {
+                left: 18%;
+                top: 24%;
+                --tilt: -4deg;
+            }
+            .word-pool span:nth-child(2) {
+                left: 38%;
+                top: 18%;
+                --tilt: 3deg;
+            }
+            .word-pool span:nth-child(3) {
+                left: 61%;
+                top: 23%;
+                --tilt: -2deg;
+            }
+            .word-pool span:nth-child(4) {
+                left: 81%;
+                top: 30%;
+                --tilt: 4deg;
+            }
+            .word-pool span:nth-child(5) {
+                left: 27%;
+                top: 43%;
+                --tilt: 2deg;
+            }
+            .word-pool span:nth-child(6) {
+                left: 49%;
+                top: 40%;
+                --tilt: -3deg;
+            }
+            .word-pool span:nth-child(7) {
+                left: 70%;
+                top: 45%;
+                --tilt: 2deg;
+            }
+            .word-pool span:nth-child(8) {
+                left: 17%;
+                top: 62%;
+                --tilt: 3deg;
+            }
+            .word-pool span:nth-child(9) {
+                left: 38%;
+                top: 61%;
+                --tilt: -2deg;
+            }
+            .word-pool span:nth-child(10) {
+                left: 58%;
+                top: 60%;
+                --tilt: 4deg;
+            }
+            .word-pool span:nth-child(11) {
+                left: 80%;
+                top: 65%;
+                --tilt: -3deg;
+            }
+            .word-pool span:nth-child(12) {
+                left: 29%;
+                top: 79%;
+                --tilt: -4deg;
+            }
+            .word-pool span:nth-child(13) {
+                left: 52%;
+                top: 79%;
+                --tilt: 2deg;
+            }
+            .word-pool span:nth-child(14) {
+                left: 71%;
+                top: 80%;
+                --tilt: -2deg;
+            }
+
+            .pattern-table {
+                display: grid;
+                grid-template-columns: max-content minmax(0, 1fr);
+                width: min(100%, 82rem);
+                border-top: 0.12rem solid var(--border-subtle);
+                font-size: clamp(1.05rem, 1.65vw, 1.9rem);
+                line-height: 1.25;
+            }
+
+            .pattern-row {
+                display: contents;
+            }
+
+            .pattern-row > * {
+                display: flex;
+                align-items: center;
+                min-height: 2.5em;
+                padding: 0.38em 0.7em;
+                border-bottom: 0.12rem solid var(--border-subtle);
+                background: rgb(255 255 255 / 72%);
+            }
+
+            .pattern-number {
+                justify-content: flex-end;
+                min-width: 3.2em;
+                border-right: 0.12rem solid var(--border-subtle);
+                color: var(--muted);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-weight: 900;
+            }
+
+            .pattern-chain {
+                color: var(--ink);
+                font-weight: 760;
+                white-space: nowrap;
+            }
+
+            .pattern-row.is-gap > * {
+                min-height: 1.55em;
+                color: var(--muted);
+                font-weight: 900;
+            }
+
+            .pattern-row.is-target > * {
+                background: var(--brand-bright);
+                color: var(--brand-ink);
+            }
+
+            .dictionary-scale {
+                display: flex;
+                align-items: baseline;
+                gap: 0.35em;
+                color: var(--ink);
+            }
+
+            .dictionary-scale strong {
+                color: var(--brand-deep);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(4.8rem, 10vw, 10rem);
+                line-height: 0.9;
+                letter-spacing: -0.08em;
+            }
+
+            .dictionary-scale span {
+                margin-left: 0.3em;
+                font-size: clamp(2rem, 4vw, 4rem);
+                font-weight: 900;
+            }
+
+            .dictionary-breakdown {
+                display: flex;
+                align-items: center;
+                gap: 0.75em;
+                color: var(--muted);
+                font-size: clamp(1.35rem, 2.2vw, 2.4rem);
+                font-weight: 800;
+            }
+
+            .dictionary-breakdown b {
+                color: var(--ink);
+                font-family: "Cascadia Code", Consolas, monospace;
+            }
+
+            .dp-note {
+                width: 100%;
+                margin-top: 0.3em;
+                color: var(--ink);
+                font-size: clamp(1.4rem, 2.3vw, 2.55rem);
+                font-weight: 800;
+                text-align: center;
+            }
+
+            .uuid-word-grid {
+                display: grid;
+                grid-template-columns: repeat(12, minmax(0, 1fr));
+                gap: clamp(0.18rem, 0.42vw, 0.42rem);
+                width: 100%;
+            }
+
+            .uuid-word-grid span {
+                display: grid;
+                place-items: center;
+                min-width: 0;
+                min-height: clamp(2.25rem, 5.2vh, 3.3rem);
+                padding: 0.22em 0.12em;
+                border-bottom: 0.13rem solid var(--brand-border);
+                background: var(--surface);
+                color: var(--ink);
+                font-size: clamp(0.66rem, 1vw, 1.05rem);
+                font-weight: 800;
+                line-height: 1.12;
+                text-align: center;
+                overflow-wrap: anywhere;
+            }
+
+            .uuid-word-grid span:first-child,
+            .uuid-word-grid span:last-child {
+                background: var(--brand-surface);
+                color: var(--brand-ink);
+            }
+
+            .image-source {
+                display: grid;
+                justify-items: center;
+                gap: clamp(0.8rem, 2vh, 1.4rem);
+            }
+
+            .image-source img {
+                width: clamp(15rem, 25vw, 21rem);
+                height: clamp(15rem, 25vw, 21rem);
+                aspect-ratio: 1;
+                image-rendering: pixelated;
+                object-fit: cover;
+            }
+
+            .image-dimensions {
+                display: flex;
+                align-items: center;
+                gap: 0.55em;
+                color: var(--ink);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(1.65rem, 3vw, 3rem);
+                font-weight: 900;
+            }
+
+            .image-dimensions::before,
+            .image-dimensions::after {
+                content: "";
+                width: clamp(2.5rem, 6vw, 6rem);
+                height: 0.12rem;
+                background: var(--brand-border);
+            }
+
+            .image-bytes {
+                color: var(--muted);
+                font-size: clamp(1rem, 1.65vw, 1.7rem);
+            }
+
+            .conversion-result-slide {
+                flex-direction: column;
+                justify-content: center;
+                gap: clamp(0.35rem, 1.1vh, 0.8rem);
+                padding: clamp(1.4rem, 3vw, 3rem) var(--slide-pad);
+            }
+
+            .conversion-source-uuid {
+                color: var(--brand-deep);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(1.35rem, 2.35vw, 2.85rem);
+                font-weight: 850;
+                letter-spacing: -0.045em;
+                line-height: 1;
+                white-space: nowrap;
+            }
+
+            .uuid-conversion-slide,
+            .image-conversion-slide {
+                gap: clamp(0.9rem, 2.1vh, 1.5rem);
+            }
+
+            .conversion-source-image {
+                width: clamp(4.1rem, 6.5vw, 6.4rem);
+                height: clamp(4.1rem, 6.5vw, 6.4rem);
+                object-fit: cover;
+                image-rendering: pixelated;
+            }
+
+            .conversion-arrow {
+                color: var(--brand-border);
+                font-size: clamp(2rem, 3.8vw, 4rem);
+                font-weight: 950;
+                line-height: 0.8;
+            }
+
+            .conversion-result-slide .uuid-word-grid {
+                gap: clamp(0.12rem, 0.3vw, 0.3rem);
+            }
+
+            .conversion-result-slide .uuid-word-grid span {
+                min-height: clamp(1.8rem, 4.1vh, 2.55rem);
+                font-size: clamp(0.6rem, 0.9vw, 0.92rem);
+            }
+
+            .image-word-grid {
+                display: grid;
+                grid-template-columns: repeat(16, minmax(0, 1fr));
+                gap: clamp(0.1rem, 0.23vw, 0.24rem);
+                width: 100%;
+            }
+
+            .image-word-grid span {
+                display: grid;
+                place-items: center;
+                min-width: 0;
+                min-height: clamp(1.7rem, 3.8vh, 2.3rem);
+                padding: 0.16em 0.08em;
+                border-bottom: 0.1rem solid var(--brand-border);
+                background: var(--surface);
+                color: var(--ink);
+                font-size: clamp(0.5rem, 0.72vw, 0.76rem);
+                font-weight: 780;
+                line-height: 1.08;
+                text-align: center;
+                overflow-wrap: anywhere;
+            }
+
+            .image-word-grid span:first-child,
+            .image-word-grid span:last-child {
+                background: var(--brand-surface);
+                color: var(--brand-ink);
+            }
+
+            .image-word-grid .is-ellipsis {
+                background: var(--surface);
+                color: var(--ink);
+                font-size: 1.15em;
+                font-weight: 900;
+            }
+
+            .image-conversion-slide .image-word-grid span {
+                min-height: clamp(1.35rem, 2.8vh, 1.8rem);
+                font-size: clamp(0.46rem, 0.66vw, 0.7rem);
+            }
+
+            .image-conversion-slide .image-word-grid .is-ellipsis {
+                font-size: clamp(0.65rem, 0.95vw, 1rem);
+            }
+
+            .image-conversion-slide .final-result-count strong {
+                color: var(--error);
+            }
+
+            .final-result-count {
+                display: flex;
+                align-items: baseline;
+                justify-content: center;
+                gap: 0.18em;
+                color: var(--ink);
+                font-size: clamp(2rem, 3.8vw, 4rem);
+                font-weight: 950;
+                line-height: 0.95;
+            }
+
+            .final-result-count strong {
+                color: var(--brand-deep);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(4.5rem, 8vw, 8rem);
+                letter-spacing: -0.08em;
+            }
+
+            .punchline h1 {
+                color: var(--error);
+            }
+
+            .link-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                width: min(94vw, 84rem);
+                margin-top: clamp(0.5rem, 1.5vh, 1.2rem);
+            }
+
+            .platform-link {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.55rem;
+                min-width: 0;
+                padding: clamp(0.7rem, 1.5vw, 1.35rem);
+                color: var(--ink);
+                text-decoration: none;
+            }
+
+            .platform-link + .platform-link {
+                border-left: 0.12rem solid var(--border-subtle);
+            }
+
+            .platform-icon {
+                display: grid;
+                place-items: center;
+                width: clamp(6rem, 9vw, 8rem);
+                height: clamp(4.8rem, 7vw, 6.2rem);
+                font-weight: 950;
+                line-height: 1;
+            }
+
+            .platform-icon svg {
+                width: clamp(3.8rem, 5.8vw, 5.5rem);
+                height: clamp(3.8rem, 5.8vw, 5.5rem);
+            }
+
+            .platform-icon img {
+                display: block;
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+            }
+
+            .pypi-mark {
+                width: clamp(4.4rem, 6.5vw, 6rem);
+                height: clamp(4.4rem, 6.5vw, 6rem);
+                object-fit: contain;
+            }
+
+            .platform-link b {
+                font-size: clamp(1.35rem, 2.2vw, 2.25rem);
+            }
+
+            .platform-link small {
+                max-width: 100%;
+                color: var(--muted);
+                font-family: "Cascadia Code", Consolas, monospace;
+                font-size: clamp(0.88rem, 1.18vw, 1.18rem);
+                font-weight: 650;
+                letter-spacing: -0.02em;
+                white-space: nowrap;
+            }
+
+            .help {
+                position: absolute;
+                left: 2rem;
+                bottom: 1.35rem;
+                color: var(--subtle);
+                font-size: clamp(0.7rem, 1vw, 1rem);
+                letter-spacing: 0.07em;
+            }
+
+            #progress {
+                position: fixed;
+                z-index: 20;
+                left: 0;
+                bottom: 0;
+                width: 100%;
+                height: 0.35rem;
+                background: #e3e1d7;
+            }
+
+            #progress-bar {
+                width: 0;
+                height: 100%;
+                transform-origin: left;
+                background: var(--brand);
+                transition: width 220ms ease;
+            }
+
+            .nav-zone {
+                position: fixed;
+                z-index: 10;
+                top: 0;
+                width: 16vw;
+                height: 100vh;
+                border: 0;
+                background: transparent;
+                cursor: pointer;
+                opacity: 0;
+            }
+
+            .nav-zone:focus-visible {
+                opacity: 1;
+                outline: 0.18rem solid var(--brand-border);
+                outline-offset: -0.4rem;
+            }
+
+            #previous {
+                left: 0;
+            }
+            #next {
+                right: 0;
+            }
+
+            @media (max-aspect-ratio: 5 / 4) {
+                .oral-scene {
+                    grid-template-columns: 1fr 1.4fr;
+                }
+                .oral-scene img:last-child {
+                    display: none;
+                }
+                .pc-scene {
+                    gap: 1rem;
+                }
+                .ban-list {
+                    gap: 2.4rem 1rem;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .slide.is-active {
+                    animation: none;
+                }
+                #progress-bar {
+                    transition: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main id="deck" aria-live="polite">
+            <!-- 表紙。「この世のすべて」は厳密には任意バイト列のこと。最初は勢いを優先する。 -->
+            <section class="slide center stack" data-title="表紙">
+                <h1 class="wide">
+                    この世のすべてを<br /><span class="accent">しりとり</span
+                    >に変換する
+                </h1>
+                <p class="sub">「仮名チェーンブロック符号」を作った</p>
+                <span class="help">← → / Space：移動　F：全画面</span>
+            </section>
+
+            <!-- まず開発のきっかけから入る。 -->
+            <section class="slide center light" data-title="きっかけ">
+                <h1 class="xl">きっかけ</h1>
+            </section>
+
+            <!-- プロジェクトルームには2台のPCがある。 -->
+            <section class="slide explain" data-title="2台のPC">
+                <h1 class="explain-title">プロジェクトルームにて…</h1>
+                <div class="explain-content visual-center">
+                    <div class="pc-scene two-pcs">
+                        <div>
+                            <div class="pc">
+                                <span class="pc-icon">🖥️</span>
+                            </div>
+                            <p class="pc-label">会社貸与PC</p>
+                        </div>
+                        <div>
+                            <div class="pc">
+                                <span class="pc-icon">🖥️</span>
+                            </div>
+                            <p class="pc-label">作業用PC</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3ページ目と同じ2台へ、ネットワーク接続の有無を書き足す。 -->
+            <section class="slide explain" data-title="ネットワーク環境">
+                <h1 class="explain-title">データを転送したい</h1>
+                <div class="explain-content visual-center">
+                    <div class="pc-scene two-pcs">
+                        <div>
+                            <div class="pc with-status">
+                                <div class="pc-status connected">
+                                    <span aria-hidden="true">🌐</span
+                                    ><strong
+                                        >インターネット<br />接続あり</strong
+                                    >
+                                </div>
+                                <span class="pc-icon">🖥️</span>
+                            </div>
+                            <p class="pc-label">会社貸与PC</p>
+                        </div>
+                        <div>
+                            <div class="pc with-status">
+                                <div class="pc-status disconnected">
+                                    <span aria-hidden="true">🚫</span
+                                    ><strong
+                                        >インターネット<br />接続なし</strong
+                                    >
+                                </div>
+                                <span class="pc-icon">🖥️</span>
+                            </div>
+                            <p class="pc-label">作業用PC</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 左から右へ、UUIDを含む数百文字の英文を移したい日が来た。 -->
+            <section class="slide explain" data-title="転送したいデータ">
+                <h1 class="explain-title">転送したいデータ</h1>
+                <div class="explain-content">
+                    <p class="explain-lead">UUIDを含む<br />数百文字の英文</p>
+                    <div>
+                        <p class="bit-caption">UUIDの例</p>
+                        <p class="uuid accent">
+                            550e8400-e29b-41d4-a716-446655440000
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- USB、カメラ、マイク、Bluetooth、Wi-Fiはすべて禁止。QRコードもカメラが起動せず断念。 -->
+            <section class="slide explain red" data-title="使えない転送経路">
+                <h1 class="explain-title">どうする？</h1>
+                <div class="explain-content visual-center">
+                    <div
+                        class="ban-list"
+                        aria-label="USB、カメラ、マイク、Bluetooth、Wi-Fiは禁止"
+                    >
+                        <div class="ban-item">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M12 21V4M12 4L9 7M12 4l3 3M12 13L7 9M7 9H5M12 16l5-4M17 12h2M4 9a1.5 1.5 0 1 0 3 0M19 10h3v3h-3z"
+                                /></svg
+                            ><small>USB</small>
+                        </div>
+                        <div class="ban-item">🎥<small>CAMERA</small></div>
+                        <div class="ban-item">🎙️<small>MIC</small></div>
+                        <div class="ban-item">ᛒ<small>Bluetooth</small></div>
+                        <div class="ban-item">📶<small>Wi-Fi</small></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- こうなってしまっては仕方ない。人間が読み上げ、人間が書き取った。 -->
+            <section class="slide explain light" data-title="口頭伝達">
+                <h1 class="explain-title">こうするしかない😭</h1>
+                <div class="explain-content visual-center">
+                    <div class="oral-scene">
+                        <img
+                            src="slide-assets/speaker.png"
+                            alt="パソコンを見ながら読み上げる人"
+                        />
+                        <div class="speech">
+                            ごー ごー ぜろ イー<br />
+                            はち よん ぜろ ぜろ<br />
+                            ハイフン イー に きゅう …
+                        </div>
+                        <img
+                            src="slide-assets/listener.png"
+                            alt="泣きながらパソコンへ書き取る人"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            <!-- 文字列の口頭伝達は、読み間違い・読み飛ばし・聞き間違い・聞き逃し・スペルミスが怖い。 -->
+            <section class="slide explain" data-title="口頭伝達のつらさ">
+                <h1 class="explain-title">怖い</h1>
+                <div class="explain-content">
+                    <div class="pain-list">
+                        <div>読み間違い</div>
+                        <div>読み飛ばし</div>
+                        <div>聞き間違い</div>
+                        <div>聞き逃し</div>
+                        <div>タイポ</div>
+                        <div>綴りがわからん</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- もっと読み上げやすく、ミスに気づける表現へ変換できないか。 -->
+            <section
+                class="slide center stack light"
+                data-title="欲しかったもの"
+            >
+                <h1 class="wide">読み上げやすく</h1>
+                <h1 class="wide">間違えにくく</h1>
+                <h1 class="wide accent-pink">すぐミスに気づける</h1>
+                <p class="sub">そんな都合の良いデータ形式なんてあるわけ……</p>
+            </section>
+
+            <!-- 答えはしりとり。接続が崩れれば、その場で違和感が出る。 -->
+            <section class="slide center yellow" data-title="答えはしりとり">
+                <h1 class="wide xl">しりとり</h1>
+            </section>
+
+            <!-- 日本語を読めない人にも、しりとりの接続規則を例で示す。 -->
+            <section
+                class="slide explain light shiritori-lesson"
+                data-title="しりとりとは"
+            >
+                <p class="eyebrow">A Japanese word chain</p>
+                <h1 class="explain-title">しりとりとは</h1>
+                <div class="explain-content">
+                    <ul class="shiritori-lesson__points">
+                        <li class="shiritori-lesson__point">
+                            <div class="shiritori-lesson__point-copy">
+                                <p class="shiritori-lesson__point-ja">
+                                    日本の伝統的な言葉遊び
+                                </p>
+                                <p class="shiritori-lesson__point-en">
+                                    A classic Japanese word game.
+                                </p>
+                            </div>
+                        </li>
+                        <li
+                            class="shiritori-lesson__point shiritori-lesson__point--with-chain"
+                        >
+                            <div class="shiritori-lesson__point-copy">
+                                <p class="shiritori-lesson__point-ja">
+                                    前の単語の最後のかなで、次の単語を始める
+                                </p>
+                                <p class="shiritori-lesson__point-en">
+                                    Each new word starts with the last sound of
+                                    the one before it.
+                                </p>
+                            </div>
+                            <div
+                                class="shiritori-lesson__chain"
+                                aria-label="さくら、らくだ、だるま、まくらのしりとり"
+                            >
+                                <div class="shiritori-lesson__word">
+                                    <strong>さく<em>ら</em></strong>
+                                    <small>sakura</small>
+                                </div>
+                                <div
+                                    class="shiritori-lesson__join"
+                                    aria-hidden="true"
+                                >
+                                    <span>→</span>
+                                    <small>ら = ら</small>
+                                </div>
+                                <div class="shiritori-lesson__word">
+                                    <strong><em>ら</em>く<em>だ</em></strong>
+                                    <small>rakuda</small>
+                                </div>
+                                <div
+                                    class="shiritori-lesson__join"
+                                    aria-hidden="true"
+                                >
+                                    <span>→</span>
+                                    <small>だ = だ</small>
+                                </div>
+                                <div class="shiritori-lesson__word">
+                                    <strong><em>だ</em>る<em>ま</em></strong>
+                                    <small>daruma</small>
+                                </div>
+                                <div
+                                    class="shiritori-lesson__join"
+                                    aria-hidden="true"
+                                >
+                                    <span>→</span>
+                                    <small>ま = ま</small>
+                                </div>
+                                <div class="shiritori-lesson__word">
+                                    <strong><em>ま</em>くら</strong>
+                                    <small>makura</small>
+                                </div>
+                            </div>
+                        </li>
+                        <li
+                            class="shiritori-lesson__point shiritori-lesson__point--loss"
+                        >
+                            <div class="shiritori-lesson__point-copy">
+                                <p class="shiritori-lesson__point-ja">
+                                    「ん」で終わると負け
+                                </p>
+                                <p class="shiritori-lesson__point-en">
+                                    Say a word ending in ん (n), and you lose.
+                                </p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- 任意のバイト列をしりとりへ変換できないか、という発想を置く。 -->
+            <section
+                class="slide center light"
+                data-title="任意のバイト列をしりとりへ"
+            >
+                <h1 class="wide compact">
+                    任意の<span class="accent-yellow">バイト列</span>を<br />
+                    <span class="accent">しりとり</span>に変換する<br />
+                    OSSを作ろう！
+                </h1>
+            </section>
+
+            <!-- 名前も考えた。あとは作るだけ！ -->
+            <section
+                class="slide center cyan kcbc-reveal"
+                data-title="仮名チェーンブロック符号"
+            >
+                <div class="focus-rays" aria-hidden="true"></div>
+                <h1 class="wide xl">仮名チェーン<br />ブロック符号</h1>
+            </section>
+
+            <!-- 情報分野の符号は、情報と表現の対応規則。暗号とは限らない。 -->
+            <section class="slide explain" data-title="符号とは">
+                <h1 class="explain-title">符号（Code）とは</h1>
+                <div class="explain-content visual-center concept-center">
+                    <div class="equation">
+                        <span>情報</span><span class="arrow">⇄</span
+                        ><span>表現</span>
+                    </div>
+                    <p class="sub">情報を決められた規則で別の形に変換する</p>
+                </div>
+            </section>
+
+            <!-- しりとりを符号として使えるのか、という疑問を置く。 -->
+            <section
+                class="slide center light question-slide"
+                data-title="できるのか"
+            >
+                <p class="question-context">だが、しりとりなんて</p>
+                <h1 class="wide xl">できるのか？</h1>
+            </section>
+
+            <!-- Base64は6ビットのビット列と文字を対応づける。010010はS。 -->
+            <section
+                class="slide explain light base64-slide"
+                data-title="Base64の例"
+            >
+                <p class="eyebrow">Example</p>
+                <h1 class="explain-title">Base64の場合</h1>
+                <div class="explain-content">
+                    <div class="equation">
+                        <span class="code">010010</span
+                        ><span class="arrow">⇄</span><span class="code">S</span>
+                    </div>
+                    <p class="sub">
+                        6bitのビット列に対して<strong>文字を対応づける</strong>
+                    </p>
+                    <div
+                        class="base64-grid"
+                        role="table"
+                        aria-label="Base64の64文字対応表"
+                    >
+                        <span data-bits="000000" role="cell"><b>A</b></span>
+                        <span data-bits="000001" role="cell"><b>B</b></span>
+                        <span data-bits="000010" role="cell"><b>C</b></span>
+                        <span data-bits="000011" role="cell"><b>D</b></span>
+                        <span data-bits="000100" role="cell"><b>E</b></span>
+                        <span data-bits="000101" role="cell"><b>F</b></span>
+                        <span data-bits="000110" role="cell"><b>G</b></span>
+                        <span data-bits="000111" role="cell"><b>H</b></span>
+                        <span data-bits="001000" role="cell"><b>I</b></span>
+                        <span data-bits="001001" role="cell"><b>J</b></span>
+                        <span data-bits="001010" role="cell"><b>K</b></span>
+                        <span data-bits="001011" role="cell"><b>L</b></span>
+                        <span data-bits="001100" role="cell"><b>M</b></span>
+                        <span data-bits="001101" role="cell"><b>N</b></span>
+                        <span data-bits="001110" role="cell"><b>O</b></span>
+                        <span data-bits="001111" role="cell"><b>P</b></span>
+                        <span data-bits="010000" role="cell"><b>Q</b></span>
+                        <span data-bits="010001" role="cell"><b>R</b></span>
+                        <span class="is-target" data-bits="010010" role="cell"
+                            ><b>S</b></span
+                        >
+                        <span data-bits="010011" role="cell"><b>T</b></span>
+                        <span data-bits="010100" role="cell"><b>U</b></span>
+                        <span data-bits="010101" role="cell"><b>V</b></span>
+                        <span data-bits="010110" role="cell"><b>W</b></span>
+                        <span data-bits="010111" role="cell"><b>X</b></span>
+                        <span data-bits="011000" role="cell"><b>Y</b></span>
+                        <span data-bits="011001" role="cell"><b>Z</b></span>
+                        <span data-bits="011010" role="cell"><b>a</b></span>
+                        <span data-bits="011011" role="cell"><b>b</b></span>
+                        <span data-bits="011100" role="cell"><b>c</b></span>
+                        <span data-bits="011101" role="cell"><b>d</b></span>
+                        <span data-bits="011110" role="cell"><b>e</b></span>
+                        <span data-bits="011111" role="cell"><b>f</b></span>
+                        <span data-bits="100000" role="cell"><b>g</b></span>
+                        <span data-bits="100001" role="cell"><b>h</b></span>
+                        <span data-bits="100010" role="cell"><b>i</b></span>
+                        <span data-bits="100011" role="cell"><b>j</b></span>
+                        <span data-bits="100100" role="cell"><b>k</b></span>
+                        <span data-bits="100101" role="cell"><b>l</b></span>
+                        <span data-bits="100110" role="cell"><b>m</b></span>
+                        <span data-bits="100111" role="cell"><b>n</b></span>
+                        <span data-bits="101000" role="cell"><b>o</b></span>
+                        <span data-bits="101001" role="cell"><b>p</b></span>
+                        <span data-bits="101010" role="cell"><b>q</b></span>
+                        <span data-bits="101011" role="cell"><b>r</b></span>
+                        <span data-bits="101100" role="cell"><b>s</b></span>
+                        <span data-bits="101101" role="cell"><b>t</b></span>
+                        <span data-bits="101110" role="cell"><b>u</b></span>
+                        <span data-bits="101111" role="cell"><b>v</b></span>
+                        <span data-bits="110000" role="cell"><b>w</b></span>
+                        <span data-bits="110001" role="cell"><b>x</b></span>
+                        <span data-bits="110010" role="cell"><b>y</b></span>
+                        <span data-bits="110011" role="cell"><b>z</b></span>
+                        <span data-bits="110100" role="cell"><b>0</b></span>
+                        <span data-bits="110101" role="cell"><b>1</b></span>
+                        <span data-bits="110110" role="cell"><b>2</b></span>
+                        <span data-bits="110111" role="cell"><b>3</b></span>
+                        <span data-bits="111000" role="cell"><b>4</b></span>
+                        <span data-bits="111001" role="cell"><b>5</b></span>
+                        <span data-bits="111010" role="cell"><b>6</b></span>
+                        <span data-bits="111011" role="cell"><b>7</b></span>
+                        <span data-bits="111100" role="cell"><b>8</b></span>
+                        <span data-bits="111101" role="cell"><b>9</b></span>
+                        <span data-bits="111110" role="cell"><b>+</b></span>
+                        <span data-bits="111111" role="cell"><b>/</b></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Base64の1対1対応を、しりとりへそのまま持ち込めるのか疑問を置く。 -->
+            <section
+                class="slide center stack light mapping-doubt"
+                data-title="010010に対応するしりとり"
+            >
+                <p class="question-context">じゃあ、しりとりの場合は…</p>
+                <div class="equation">
+                    <span class="code">010010</span>
+                    <span class="arrow">⇄</span>
+                    <span class="doubt-chain">？？？</span>
+                </div>
+                <h1 class="wide compact">え、無理では？</h1>
+            </section>
+
+            <!-- ここから仕組み。 -->
+            <section class="slide center yellow" data-title="ブロック符号">
+                <h1 class="wide xl">無理じゃなかった！</h1>
+            </section>
+
+            <!-- 小さなワードプールに14語を散らし、列挙の材料を示す。 -->
+            <section class="slide explain" data-title="ワードプール">
+                <h1 class="explain-title">① 単語を用意する</h1>
+                <div class="explain-content visual-center">
+                    <div class="word-pool" aria-label="14語のワードプール">
+                        <span>あさ</span><span>さけ</span><span>さる</span
+                        ><span>けいと</span><span>けむり</span><span>るす</span
+                        ><span>とり</span><span>りす</span><span>すし</span
+                        ><span>すな</span><span>なみ</span><span>みそ</span
+                        ><span>しか</span><span>かさ</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 作れるしりとりを並べ、整数で順番を与える。 -->
+            <section
+                class="slide explain light"
+                data-title="しりとりを列挙する"
+            >
+                <h1 class="explain-title">② 作れるしりとりをすべて列挙する</h1>
+                <div class="explain-content visual-center">
+                    <div
+                        class="pattern-table"
+                        aria-label="しりとりのパターン表"
+                    >
+                        <div class="pattern-row">
+                            <b class="pattern-number">1</b>
+                            <span class="pattern-chain"
+                                >あさ → さけ → けいと → とり → りす → すし</span
+                            >
+                        </div>
+                        <div class="pattern-row">
+                            <b class="pattern-number">2</b>
+                            <span class="pattern-chain"
+                                >あさ → さけ → けむり → りす → すな → なみ</span
+                            >
+                        </div>
+                        <div class="pattern-row is-gap">
+                            <b class="pattern-number">⋮</b>
+                            <span class="pattern-chain">⋮</span>
+                        </div>
+                        <div class="pattern-row">
+                            <b class="pattern-number">18</b>
+                            <span class="pattern-chain"
+                                >さる → るす → すし → しか → かさ → さけ</span
+                            >
+                        </div>
+                        <div class="pattern-row is-gap">
+                            <b class="pattern-number">⋮</b>
+                            <span class="pattern-chain">⋮</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 010010を整数18として読み、同じ一覧の18番目を選ぶ。 -->
+            <section
+                class="slide explain light base64-slide enumeration-slide"
+                data-title="18番目を選ぶ"
+            >
+                <h1 class="explain-title">
+                    ③ バイト列を整数とみなして紐づける
+                </h1>
+                <div class="explain-content">
+                    <div class="equation">
+                        <span class="code">010010</span>
+                        <span class="arrow">⇄</span>
+                        <span class="code">18番</span>
+                    </div>
+                    <div
+                        class="pattern-table"
+                        aria-label="18番目を選んだしりとりのパターン表"
+                    >
+                        <div class="pattern-row">
+                            <b class="pattern-number">1</b>
+                            <span class="pattern-chain"
+                                >あさ → さけ → けいと → とり → りす → すし</span
+                            >
+                        </div>
+                        <div class="pattern-row">
+                            <b class="pattern-number">2</b>
+                            <span class="pattern-chain"
+                                >あさ → さけ → けむり → りす → すな → なみ</span
+                            >
+                        </div>
+                        <div class="pattern-row is-gap">
+                            <b class="pattern-number">⋮</b>
+                            <span class="pattern-chain">⋮</span>
+                        </div>
+                        <div class="pattern-row is-target">
+                            <b class="pattern-number">18</b>
+                            <span class="pattern-chain"
+                                >さる → るす → すし → しか → かさ → さけ</span
+                            >
+                        </div>
+                        <div class="pattern-row is-gap">
+                            <b class="pattern-number">⋮</b>
+                            <span class="pattern-chain">⋮</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- A1/D1の実辞書では、列挙表を持たず経路数を動的計画法で求める。 -->
+            <section class="slide explain light" data-title="A1/D1の規模">
+                <h1 class="explain-title">これをスケールアップする</h1>
+                <div class="explain-content visual-center">
+                    <div class="dictionary-scale">
+                        <strong>3,176</strong><span>語</span>
+                    </div>
+                    <div class="dictionary-breakdown">
+                        <span>通常語 <b>2,748</b></span>
+                        <span>＋</span>
+                        <span>終端語 <b>428</b></span>
+                    </div>
+                    <p class="dp-note">
+                        全パターン列挙はできないので、リアルタイムに導出する<br />（動的計画法というものを使う）
+                    </p>
+                </div>
+            </section>
+
+            <!-- ここから実データで、変換結果の長さをオチへつなげる。 -->
+            <section class="slide center light" data-title="実際に変換してみた">
+                <h1 class="wide xl">
+                    実際に<span class="accent">変換</span>してみた
+                </h1>
+            </section>
+
+            <!-- 冒頭で示したUUIDを、そのままA1/D1へ渡す。 -->
+            <section class="slide explain" data-title="変換前のUUID">
+                <h1 class="explain-title">UUIDを変換してみる</h1>
+                <div class="explain-content visual-center">
+                    <div>
+                        <p class="uuid accent">
+                            550e8400-e29b-41d4-a716-446655440000
+                        </p>
+                        <p class="bit-caption">36 bytes</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 現行A1/D1による実変換結果。全83語をグリッドで見せる。 -->
+            <section
+                class="slide center light conversion-result-slide uuid-conversion-slide"
+                data-title="UUIDの変換結果"
+            >
+                <div class="conversion-source-uuid">
+                    550e8400-e29b-41d4-a716-446655440000
+                </div>
+                <div class="conversion-arrow" aria-hidden="true">↓</div>
+                <div class="uuid-word-grid" aria-label="UUIDを変換した83語">
+                    <span>のうりょく</span>
+                    <span>くじ</span>
+                    <span>じみ</span>
+                    <span>みき</span>
+                    <span>きんにく</span>
+                    <span>くちべに</span>
+                    <span>にんき</span>
+                    <span>きょうみ</span>
+                    <span>みっつ</span>
+                    <span>つくし</span>
+                    <span>しんしつ</span>
+                    <span>つい</span>
+                    <span>いどう</span>
+                    <span>うめぼし</span>
+                    <span>しょうめい</span>
+                    <span>いるい</span>
+                    <span>いっち</span>
+                    <span>ちか</span>
+                    <span>かたち</span>
+                    <span>ちりとり</span>
+                    <span>りったい</span>
+                    <span>いた</span>
+                    <span>ただいま</span>
+                    <span>まま</span>
+                    <span>まね</span>
+                    <span>ねらい</span>
+                    <span>いけ</span>
+                    <span>けんさ</span>
+                    <span>さんこう</span>
+                    <span>うし</span>
+                    <span>しせい</span>
+                    <span>いき</span>
+                    <span>きぎょう</span>
+                    <span>うるし</span>
+                    <span>しまつ</span>
+                    <span>つつみ</span>
+                    <span>みぞれ</span>
+                    <span>レポート</span>
+                    <span>となり</span>
+                    <span>りょうし</span>
+                    <span>しりもち</span>
+                    <span>ちゅう</span>
+                    <span>うち</span>
+                    <span>ちょうせつ</span>
+                    <span>つね</span>
+                    <span>ねまき</span>
+                    <span>きにゅう</span>
+                    <span>うでどけい</span>
+                    <span>いなか</span>
+                    <span>かみ</span>
+                    <span>みなみ</span>
+                    <span>みずたまり</span>
+                    <span>りそく</span>
+                    <span>くじ</span>
+                    <span>じえい</span>
+                    <span>いけばな</span>
+                    <span>なんきょく</span>
+                    <span>くま</span>
+                    <span>まと</span>
+                    <span>とし</span>
+                    <span>しわ</span>
+                    <span>わな</span>
+                    <span>なま</span>
+                    <span>マント</span>
+                    <span>とうせい</span>
+                    <span>いち</span>
+                    <span>ちょうさ</span>
+                    <span>さんこう</span>
+                    <span>うんどうかい</span>
+                    <span>いご</span>
+                    <span>ゴルフ</span>
+                    <span>ふし</span>
+                    <span>しゅと</span>
+                    <span>とくてい</span>
+                    <span>いりょう</span>
+                    <span>うちあわせ</span>
+                    <span>せいふ</span>
+                    <span>ふたり</span>
+                    <span>りし</span>
+                    <span>しり</span>
+                    <span>りく</span>
+                    <span>くじゃく</span>
+                    <span>くうかん</span>
+                </div>
+                <p class="final-result-count">
+                    <strong>83</strong><span>語</span>
+                </p>
+            </section>
+
+            <!-- UUIDだけでも83語。次はさらに小さな画像を試す。 -->
+            <section class="slide center light" data-title="長い">
+                <h1 class="wide xl">増えた……？</h1>
+            </section>
+
+            <!-- 64×64 JPEGを、任意バイナリとしてA1/D1へ渡す。 -->
+            <section class="slide explain" data-title="画像を変換する">
+                <h1 class="explain-title">画像も変換してみる</h1>
+                <div class="explain-content visual-center">
+                    <figure class="image-source">
+                        <img
+                            src="slide-assets/6464.jpg"
+                            width="64"
+                            height="64"
+                            alt="かなちぇーんと書かれた64ピクセル四方の画像"
+                        />
+                        <figcaption class="image-dimensions">
+                            64 px × 64 px
+                        </figcaption>
+                        <span class="image-bytes">JPEG / 6,509 bytes</span>
+                    </figure>
+                </div>
+            </section>
+
+            <!-- 画像の実変換結果は7,264語。冒頭72語と末尾87語を中略付きで見せる。 -->
+            <section
+                class="slide center light conversion-result-slide image-conversion-slide"
+                data-title="画像の変換結果"
+            >
+                <img
+                    class="conversion-source-image"
+                    src="slide-assets/6464.jpg"
+                    width="64"
+                    height="64"
+                    alt="変換前の64ピクセル四方の画像"
+                />
+                <div class="conversion-arrow" aria-hidden="true">↓</div>
+                <div
+                    class="image-word-grid"
+                    aria-label="画像を変換した7,264語の冒頭"
+                >
+                    <span>れいきゃく</span>
+                    <span>くも</span>
+                    <span>もうふ</span>
+                    <span>ふへい</span>
+                    <span>いずみ</span>
+                    <span>みな</span>
+                    <span>ないかく</span>
+                    <span>くび</span>
+                    <span>ビスケット</span>
+                    <span>とっきゅう</span>
+                    <span>うし</span>
+                    <span>しるし</span>
+                    <span>しっぱい</span>
+                    <span>いんさつ</span>
+                    <span>ついらく</span>
+                    <span>くもり</span>
+                    <span>りょう</span>
+                    <span>うま</span>
+                    <span>マント</span>
+                    <span>とき</span>
+                    <span>きんちょう</span>
+                    <span>うちあわせ</span>
+                    <span>せつやく</span>
+                    <span>くじ</span>
+                    <span>じみ</span>
+                    <span>みなと</span>
+                    <span>とうき</span>
+                    <span>ききゅう</span>
+                    <span>うたがい</span>
+                    <span>いのり</span>
+                    <span>りかい</span>
+                    <span>いた</span>
+                    <span>たいしゅう</span>
+                    <span>うがい</span>
+                    <span>いちど</span>
+                    <span>どうよう</span>
+                    <span>うき</span>
+                    <span>きゅうか</span>
+                    <span>かいきょう</span>
+                    <span>うで</span>
+                    <span>でんぽう</span>
+                    <span>うろこ</span>
+                    <span>こうたい</span>
+                    <span>いちぶ</span>
+                    <span>ぶたい</span>
+                    <span>いつか</span>
+                    <span>かへい</span>
+                    <span>いと</span>
+                    <span>とじまり</span>
+                    <span>りか</span>
+                    <span>かんき</span>
+                    <span>きょうよう</span>
+                    <span>うつぶせ</span>
+                    <span>せつぞく</span>
+                    <span>くらし</span>
+                    <span>しらせ</span>
+                    <span>せいめい</span>
+                    <span>いじ</span>
+                    <span>じこ</span>
+                    <span>こっか</span>
+                    <span>かいし</span>
+                    <span>しょうがつ</span>
+                    <span>つうか</span>
+                    <span>かんそう</span>
+                    <span>うめ</span>
+                    <span>めいれい</span>
+                    <span>いね</span>
+                    <span>ねこ</span>
+                    <span>こうむ</span>
+                    <span>むかし</span>
+                    <span>しゅし</span>
+                    <span>しんらい</span>
+                    <span class="is-ellipsis">（略）</span>
+                    <span>なま</span>
+                    <span>まま</span>
+                    <span>まっさき</span>
+                    <span>きがね</span>
+                    <span>ねっちゅう</span>
+                    <span>うき</span>
+                    <span>きんぞく</span>
+                    <span>くさ</span>
+                    <span>さいしゅう</span>
+                    <span>うんどうじょう</span>
+                    <span>うわぎ</span>
+                    <span>ぎょう</span>
+                    <span>うるし</span>
+                    <span>しょうひ</span>
+                    <span>ひげ</span>
+                    <span>げっしょく</span>
+                    <span>くらし</span>
+                    <span>しかた</span>
+                    <span>たいど</span>
+                    <span>どうし</span>
+                    <span>しゅっちょう</span>
+                    <span>うし</span>
+                    <span>しょうかい</span>
+                    <span>いちば</span>
+                    <span>バッジ</span>
+                    <span>じこく</span>
+                    <span>くま</span>
+                    <span>まと</span>
+                    <span>とし</span>
+                    <span>しょり</span>
+                    <span>リットル</span>
+                    <span>ルール</span>
+                    <span>るい</span>
+                    <span>いっさい</span>
+                    <span>いき</span>
+                    <span>きょうし</span>
+                    <span>しんぽ</span>
+                    <span>ポケット</span>
+                    <span>とうもろこし</span>
+                    <span>しょうしょう</span>
+                    <span>うまれ</span>
+                    <span>れきし</span>
+                    <span>しち</span>
+                    <span>ちゃく</span>
+                    <span>くま</span>
+                    <span>まんねんひつ</span>
+                    <span>つち</span>
+                    <span>ちんぼつ</span>
+                    <span>つばめ</span>
+                    <span>めいじ</span>
+                    <span>じたい</span>
+                    <span>いえ</span>
+                    <span>えんそく</span>
+                    <span>くき</span>
+                    <span>きょか</span>
+                    <span>かみそり</span>
+                    <span>りえき</span>
+                    <span>きた</span>
+                    <span>たうえ</span>
+                    <span>えいこく</span>
+                    <span>クラス</span>
+                    <span>すそ</span>
+                    <span>ソース</span>
+                    <span>すす</span>
+                    <span>すうじ</span>
+                    <span>じょせい</span>
+                    <span>いしょう</span>
+                    <span>うんどう</span>
+                    <span>うらがえし</span>
+                    <span>シャツ</span>
+                    <span>つき</span>
+                    <span>きょり</span>
+                    <span>りんじ</span>
+                    <span>じんるい</span>
+                    <span>いずみ</span>
+                    <span>みそ</span>
+                    <span>そつぎょう</span>
+                    <span>うめぼし</span>
+                    <span>しずく</span>
+                    <span>くし</span>
+                    <span>しち</span>
+                    <span>ちょうしょく</span>
+                    <span>くい</span>
+                    <span>いねかり</span>
+                    <span>りつ</span>
+                    <span>つつじ</span>
+                    <span>じつげん</span>
+                </div>
+                <p class="final-result-count">
+                    <strong>7,264</strong><span>語</span>
+                </p>
+            </section>
+
+            <!-- 口頭伝達のための符号なのに、画像は長すぎて読めない。 -->
+            <section class="slide center red punchline" data-title="読めない">
+                <h1 class="wide xl">さすがに無理がある</h1>
+            </section>
+
+            <!-- 実装とデモへの導線。ここで締める。 -->
+            <section class="slide center stack" data-title="デモとリポジトリ">
+                <p class="eyebrow">Kana Chain Block Code</p>
+                <h1 class="wide">遊んでみてね。</h1>
+                <div class="link-grid" aria-label="公開先リンク">
+                    <a
+                        class="platform-link"
+                        href="https://github.com/mujuko/kanachain"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        <span class="platform-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" role="img">
+                                <path
+                                    fill="currentColor"
+                                    d="M12 .5C5.73.5.5 5.73.5 12c0 5.01 3.44 9.26 8.2 10.76.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.4-1.35-1.77-1.35-1.77-1.1-.75.08-.73.08-.73 1.22.09 1.86 1.25 1.86 1.25 1.08 1.85 2.84 1.32 3.53 1.01.11-.79.42-1.32.76-1.62-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23.96-.27 1.98-.4 3-.4 1.02 0 2.04.14 3 .4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A11.5 11.5 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5Z"
+                                />
+                            </svg>
+                        </span>
+                        <b>GitHub</b>
+                        <small>github.com/mujuko/kanachain</small>
+                    </a>
+                    <a
+                        class="platform-link"
+                        href="https://www.npmjs.com/package/@mujuko/kanachain"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="slide-assets/npm-logo-red.svg" alt="" />
+                        </span>
+                        <b>npm</b>
+                        <small>@mujuko/kanachain</small>
+                    </a>
+                    <a
+                        class="platform-link"
+                        href="https://pypi.org/project/kanachain/"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        <span class="platform-icon" aria-hidden="true">
+                            <!-- Source: Wikimedia Commons, PyPI-Logo-notext.svg, Python Software Foundation, Apache-2.0 -->
+                            <img
+                                class="pypi-mark"
+                                src="slide-assets/pypi-logo-notext.svg"
+                                alt=""
+                            />
+                        </span>
+                        <b>PyPI</b>
+                        <small>pypi.org/project/kanachain</small>
+                    </a>
+                    <a
+                        class="platform-link"
+                        href="https://kanachain.mujuko.com"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        <span class="platform-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" role="img">
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="9"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                />
+                                <path
+                                    d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21M12 3C9.5 5.6 8.2 8.6 8.2 12s1.3 6.4 3.8 9"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.8"
+                                />
+                            </svg>
+                        </span>
+                        <b>デモサイト</b>
+                        <small>kanachain.mujuko.com</small>
+                    </a>
+                </div>
+                <p class="sub">ありがとうございました</p>
+            </section>
+        </main>
+
+        <button
+            id="previous"
+            class="nav-zone"
+            type="button"
+            aria-label="前のスライド"
+        ></button>
+        <button
+            id="next"
+            class="nav-zone"
+            type="button"
+            aria-label="次のスライド"
+        ></button>
+        <div id="progress" aria-hidden="true">
+            <div id="progress-bar"></div>
         </div>
-      </div>
-    </section>
 
-    <!-- 次に「ブロック符号」。 -->
-    <section class="slide center yellow" data-title="ブロック符号"><h1 class="wide xl">仮名チェーン<span class="underline">ブロック符号</span></h1></section>
+        <script>
+            (() => {
+                const slides = [...document.querySelectorAll(".slide")];
+                const progressBar = document.querySelector("#progress-bar");
+                let current = 0;
+                let touchStartX = null;
 
-    <!-- 一定のまとまりを単位に変換する。KCB1では通常35語。 -->
-    <section class="slide explain" data-title="ブロック符号とは">
-      <p class="eyebrow">Block Code</p>
-      <h1 class="explain-title">ブロック符号とは</h1>
-      <div class="explain-content">
-        <div class="flow"><b>データのまとまり</b><i>⇄</i><b>符号のまとまり</b></div>
-        <p class="sub">1個ずつではなく、<strong>ブロック単位</strong>で対応づける</p>
-      </div>
-    </section>
+                slides.forEach((slide, index) => {
+                    slide.dataset.index = String(index + 1).padStart(2, "0");
+                    slide.setAttribute("role", "group");
+                    slide.setAttribute("aria-roledescription", "slide");
+                    slide.setAttribute(
+                        "aria-label",
+                        `${index + 1} / ${slides.length}：${slide.dataset.title ?? ""}`,
+                    );
+                });
 
-    <!-- 最後に「仮名チェーン」。 -->
-    <section class="slide center pink" data-title="仮名チェーン"><h1 class="wide xl"><span class="underline">仮名チェーン</span>ブロック符号</h1></section>
+                function indexFromHash() {
+                    const value = Number(location.hash.replace("#", ""));
+                    return Number.isInteger(value) &&
+                        value >= 1 &&
+                        value <= slides.length
+                        ? value - 1
+                        : 0;
+                }
 
-    <!-- 仮名チェーンはしりとり。答えと接続例を1枚で見せる。 -->
-    <section class="slide explain" data-title="しりとり">
-      <h1 class="explain-title">仮名チェーンはしりとり</h1>
-      <div class="explain-content"><div class="word-chain demo-chain" aria-label="あさ、さかな、なみ、みかん"><span>あ<em>さ</em></span><span class="join">→</span><span><em>さ</em>か<em>な</em></span><span class="join">→</span><span><em>な</em><em>み</em></span><span class="join">→</span><span><em>み</em>かん</span></div></div>
-    </section>
+                function show(index, updateHash = true) {
+                    current = Math.max(0, Math.min(index, slides.length - 1));
+                    slides.forEach((slide, slideIndex) => {
+                        const active = slideIndex === current;
+                        slide.classList.toggle("is-active", active);
+                        slide.toggleAttribute("inert", !active);
+                        slide.setAttribute("aria-hidden", String(!active));
+                    });
+                    progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
+                    document.title = `${slides[current].dataset.title} — KCBC`;
+                    if (updateHash)
+                        history.replaceState(null, "", `#${current + 1}`);
+                }
 
-    <!-- 名前を再結合する。 -->
-    <section class="slide center cyan" data-title="KCBC"><div><p class="eyebrow">Kana Chain Block Code</p><h1 class="wide xl">KCBC</h1></div></section>
+                function next() {
+                    show(current + 1);
+                }
+                function previous() {
+                    show(current - 1);
+                }
 
-    <!-- 発明の一文定義。 -->
-    <section class="slide center stack" data-title="一文定義"><h1 class="wide">任意の<span class="accent-yellow">バイト列</span>を<br><span class="accent">しりとり</span>へ</h1><p class="sub"><strong>可逆変換</strong>するアルゴリズムです</p></section>
+                document.addEventListener("keydown", (event) => {
+                    if (
+                        ["ArrowRight", "PageDown", " ", "Enter"].includes(
+                            event.key,
+                        )
+                    ) {
+                        event.preventDefault();
+                        next();
+                    } else if (
+                        ["ArrowLeft", "PageUp", "Backspace"].includes(event.key)
+                    ) {
+                        event.preventDefault();
+                        previous();
+                    } else if (event.key === "Home") {
+                        event.preventDefault();
+                        show(0);
+                    } else if (event.key === "End") {
+                        event.preventDefault();
+                        show(slides.length - 1);
+                    } else if (event.key.toLowerCase() === "f") {
+                        event.preventDefault();
+                        if (!document.fullscreenElement)
+                            document.documentElement.requestFullscreen?.();
+                        else document.exitFullscreen?.();
+                    }
+                });
 
-    <!-- ここから仕組み。 -->
-    <section class="slide center cyan" data-title="KCBCのしくみ"><h1 class="wide">KCBCの<br>しくみ</h1></section>
+                document.querySelector("#next").addEventListener("click", next);
+                document
+                    .querySelector("#previous")
+                    .addEventListener("click", previous);
+                window.addEventListener("hashchange", () =>
+                    show(indexFromHash(), false),
+                );
+                document.addEventListener(
+                    "touchstart",
+                    (event) => {
+                        touchStartX = event.changedTouches[0]?.clientX ?? null;
+                    },
+                    { passive: true },
+                );
+                document.addEventListener(
+                    "touchend",
+                    (event) => {
+                        if (touchStartX === null) return;
+                        const delta =
+                            (event.changedTouches[0]?.clientX ?? touchStartX) -
+                            touchStartX;
+                        if (Math.abs(delta) > 50)
+                            delta < 0 ? next() : previous();
+                        touchStartX = null;
+                    },
+                    { passive: true },
+                );
 
-    <!-- 説明用の小さな辞書から、KCBCの対応規則を段階的に見る。 -->
-    <section class="slide explain" data-title="小さな辞書">
-      <h1 class="explain-title"><span class="step-number">1</span>単語を用意する</h1>
-      <div class="explain-content"><div class="mini-dictionary" aria-label="説明用の小さな辞書"><span>あさ</span><span>さけ</span><span>さる</span><span>けいと</span><span>けむり</span><span>るす</span><span>とり</span><span>りす</span><span>すし</span><span>すな</span><span>なみ</span><span>みそ</span><span>しか</span><span>かさ</span></div><p class="sub">まずは<strong>説明用の14語</strong>だけ</p></div>
-    </section>
-
-    <!-- 辞書の単語は、末尾かなから始まる次の語へつなげられる。 -->
-    <section class="slide explain light" data-title="しりとりを作る">
-      <h1 class="explain-title"><span class="step-number">2</span>しりとりを作る</h1>
-      <div class="explain-content"><div class="word-chain demo-chain"><span>あ<em>さ</em></span><span class="join">→</span><span><em>さ</em>け</span><span class="join">→</span><span><em>け</em>いと</span><span class="join">→</span><span><em>と</em>り</span><span class="join">→</span><span><em>り</em>す</span><span class="join">→</span><span><em>す</em>し</span></div><p class="sub">辞書の選び方で、いくつもの列を作れる</p></div>
-    </section>
-
-    <!-- 説明用として、6ビット値と作れるしりとりを対応づける。 -->
-    <section class="slide explain" data-title="対応表を作る">
-      <h1 class="explain-title"><span class="step-number">3</span>対応表を作る</h1>
-      <div class="explain-content"><p class="sub">6bitの値に<strong>しりとりを対応づける</strong></p><div class="mapping-table" aria-label="説明用のKCBC対応表">
-          <div class="mapping-row"><span class="mapping-bits">010000</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けむり → りす → すな → なみ</span></div>
-          <div class="mapping-row"><span class="mapping-bits">010001</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さる → るす → すし → しか → かさ</span></div>
-          <div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けいと → とり → りす → すし</span></div>
-        </div><p class="bit-caption">※ 説明用の対応例</p></div>
-    </section>
-
-    <!-- 入力010010に対応する行を、表から選ぶ。 -->
-    <section class="slide explain yellow" data-title="010010を探す">
-      <h1 class="explain-title"><span class="step-number">4</span><span class="code">010010</span>を探す</h1>
-      <div class="explain-content"><div class="mapping-table" aria-label="010010に対応する行"><div class="mapping-row is-target"><span class="mapping-bits">010010</span><span class="mapping-link">⇄</span><span class="mapping-chain">あさ → さけ → けいと → とり → りす → すし</span></div></div></div>
-    </section>
-
-    <!-- 対応表の右側を読めば、010010はこのしりとりになる。 -->
-    <section class="slide explain" data-title="010010の変換結果">
-      <h1 class="explain-title"><span class="step-number">5</span>この列を選ぶ</h1>
-      <div class="explain-content"><div class="word-chain demo-chain"><span>あさ</span><span class="join">→</span><span>さけ</span><span class="join">→</span><span>けいと</span><span class="join">→</span><span>とり</span><span class="join">→</span><span>りす</span><span class="join">→</span><span>すし</span></div><p class="sub"><span class="code">010010</span> は<strong>このしりとりになる</strong></p></div>
-    </section>
-
-    <!-- 同じ対応表を逆向きに使えば元のビット列へ戻せる。 -->
-    <section class="slide explain light" data-title="逆変換">
-      <h1 class="explain-title"><span class="step-number">6</span>逆向きにも読める</h1>
-      <div class="explain-content"><div class="reverse-map"><div class="reverse-chain">あさ → さけ → けいと → とり → りす → すし</div><div class="reverse-arrow">⇅</div><b class="code">010010</b></div><p class="sub">だから<strong>元のデータへ戻せる</strong></p></div>
-    </section>
-
-    <!-- 実際の符号表は数千語。語を増やして巨大な対応空間を作る。 -->
-    <section class="slide center stack" data-title="数千語へ拡張">
-      <h1 class="wide">実際は<span class="accent">数千語</span></h1>
-      <div class="scale-row"><div class="scale-number">14<small>説明用</small></div><div class="scale-arrow">→</div><div class="scale-number accent">数千<small>実際の辞書</small></div></div>
-      <p class="sub">語を増やすほど、表せるビット列も増える</p>
-    </section>
-
-    <!-- 数千語の実辞書を使ったUUIDの変換例。 -->
-    <section class="slide explain" data-title="UUIDの変換例"><p class="eyebrow">実際の変換例</p><h1 class="explain-title">UUIDを変換すると</h1><div class="explain-content"><div class="sample-output"><b>あいこ</b> こおり りょひ ひがし しかた たすう うずまき きゅう うろこ こめ めいし しょうちょう …<br>けんち ちず ずけい いつつ つぼみ みおくり りょひ ひかげ げんし しゅみ … <span class="terminal">くうかん</span></div><div class="sample-meta"><span>UUID</span><span>⇄</span><span>しりとり</span></div></div></section>
-
-    <!-- 長いデータは複数のブロックへ分け、それぞれをしりとりへ変換する。 -->
-    <section class="slide explain yellow" data-title="ブロックに分ける"><h1 class="explain-title">長いデータはブロックに分ける</h1><div class="explain-content"><div class="block-pairs"><div class="block-pair"><b>データ①</b><i>⇅</i><b>しりとり①</b></div><div class="block-plus">＋</div><div class="block-pair"><b>データ②</b><i>⇅</i><b>しりとり②</b></div></div></div></section>
-
-    <!-- 前のブロックの末尾かなで、次のブロックを始める。 -->
-    <section class="slide explain light" data-title="ブロック間もつなぐ"><h1 class="explain-title">ブロックの境目もつなぐ</h1><div class="explain-content"><div class="word-chain demo-chain"><span>…り<em>す</em></span><span class="join">→</span><span><em>す</em>な…</span></div><p class="sub">ブロックが変わっても、かなのチェーンは続く</p></div></section>
-
-    <!-- 接続・辞書・最後の検査によって、書き取りミスへ気づきやすくする。 -->
-    <section class="slide explain" data-title="ミスを検出する"><h1 class="explain-title">ミスを検出する</h1><div class="explain-content"><div class="check-list"><div>しりとりがつながらない</div><div>辞書にない語になった</div><div>最後の検査に通らない</div></div><p class="sub">※ 誤り訂正ではなく、<strong>検出</strong></p></div></section>
-
-    <!-- 冒頭の「すべて」を、任意バイト列という技術的な意味で回収する。 -->
-    <section class="slide center stack green" data-title="まとめ"><h1 class="wide">任意バイト列<br>⇄<br>しりとり</h1><p class="sub" style="color:var(--brand-ink)"><strong>この世のすべてを、しりとりに。</strong></p></section>
-
-    <!-- 実装とデモへの導線。ここで締める。 -->
-    <section class="slide center stack" data-title="デモとリポジトリ"><p class="eyebrow">Kana Chain Block Code / KCB1</p><h1 class="wide">遊べます。</h1><div class="links"><a href="https://kanachain.mujuko.workers.dev">kanachain.mujuko.workers.dev</a><a href="https://github.com/mujuko/kanachain">github.com/mujuko/kanachain</a></div><p class="sub">ありがとうございました</p></section>
-  </main>
-
-  <button id="previous" class="nav-zone" type="button" aria-label="前のスライド"></button>
-  <button id="next" class="nav-zone" type="button" aria-label="次のスライド"></button>
-  <div id="progress" aria-hidden="true"><div id="progress-bar"></div></div>
-
-  <script>
-    (() => {
-      const slides = [...document.querySelectorAll(".slide")];
-      const progressBar = document.querySelector("#progress-bar");
-      let current = 0;
-      let touchStartX = null;
-
-      slides.forEach((slide, index) => {
-        slide.dataset.index = String(index + 1).padStart(2, "0");
-        slide.setAttribute("role", "group");
-        slide.setAttribute("aria-roledescription", "slide");
-        slide.setAttribute("aria-label", `${index + 1} / ${slides.length}：${slide.dataset.title ?? ""}`);
-      });
-
-      function indexFromHash() {
-        const value = Number(location.hash.replace("#", ""));
-        return Number.isInteger(value) && value >= 1 && value <= slides.length ? value - 1 : 0;
-      }
-
-      function show(index, updateHash = true) {
-        current = Math.max(0, Math.min(index, slides.length - 1));
-        slides.forEach((slide, slideIndex) => {
-          const active = slideIndex === current;
-          slide.classList.toggle("is-active", active);
-          slide.toggleAttribute("inert", !active);
-          slide.setAttribute("aria-hidden", String(!active));
-        });
-        progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
-        document.title = `${slides[current].dataset.title} — KCBC`;
-        if (updateHash) history.replaceState(null, "", `#${current + 1}`);
-      }
-
-      function next() { show(current + 1); }
-      function previous() { show(current - 1); }
-
-      document.addEventListener("keydown", (event) => {
-        if (["ArrowRight", "PageDown", " ", "Enter"].includes(event.key)) {
-          event.preventDefault();
-          next();
-        } else if (["ArrowLeft", "PageUp", "Backspace"].includes(event.key)) {
-          event.preventDefault();
-          previous();
-        } else if (event.key === "Home") {
-          event.preventDefault();
-          show(0);
-        } else if (event.key === "End") {
-          event.preventDefault();
-          show(slides.length - 1);
-        } else if (event.key.toLowerCase() === "f") {
-          event.preventDefault();
-          if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-          else document.exitFullscreen?.();
-        }
-      });
-
-      document.querySelector("#next").addEventListener("click", next);
-      document.querySelector("#previous").addEventListener("click", previous);
-      window.addEventListener("hashchange", () => show(indexFromHash(), false));
-      document.addEventListener("touchstart", (event) => { touchStartX = event.changedTouches[0]?.clientX ?? null; }, { passive: true });
-      document.addEventListener("touchend", (event) => {
-        if (touchStartX === null) return;
-        const delta = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX;
-        if (Math.abs(delta) > 50) delta < 0 ? next() : previous();
-        touchStartX = null;
-      }, { passive: true });
-
-      show(indexFromHash(), false);
-    })();
-  </script>
-</body>
+                show(indexFromHash(), false);
+            })();
+        </script>
+    </body>
 </html>
